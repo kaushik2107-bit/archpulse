@@ -6,10 +6,11 @@ import (
 )
 
 type LoadGenerator struct {
-	ResourceID kernel.ResourceID
-	Downstream kernel.ResourceID
-	Workload   workload.Generator
-	nextReqID  kernel.RequestID
+	ResourceID    kernel.ResourceID
+	Downstream    kernel.ResourceID
+	Workload      workload.Generator
+	RequestWeight int
+	nextReqID     kernel.RequestID
 }
 
 func (g *LoadGenerator) ID() kernel.ResourceID { return g.ResourceID }
@@ -22,7 +23,11 @@ func (g *LoadGenerator) HandleEvent(event kernel.Event, ctx *kernel.SimContext) 
 		return nil
 	}
 	g.nextReqID++
-	request := &kernel.RequestState{ID: g.nextReqID, ArrivalTime: nextTime}
+	weight := g.RequestWeight
+	if weight <= 0 {
+		weight = 1
+	}
+	request := &kernel.RequestState{ID: g.nextReqID, ArrivalTime: nextTime, Weight: weight}
 	return []kernel.Event{
 		{Time: nextTime, Type: kernel.RequestArrived, Target: g.Downstream, Payload: kernel.RequestArrivedPayload{Request: request}},
 		{Time: nextTime, Type: kernel.RequestArrived, Target: g.ResourceID},

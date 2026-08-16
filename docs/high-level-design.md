@@ -399,6 +399,11 @@ saveRun(result: RunResult): SimulationId
 loadRun(id: SimulationId): RunResult
 ```
 
+Bottleneck analysis is service-agnostic and topology-aware: it ranks sustained
+capacity constraints using whole-run queue and utilization evidence, detects
+material throughput regime drops, and distinguishes downstream root constraints
+from backpressure observed at upstream callers.
+
 For the Go MVP, assembly is centralized in `engine.Bootstrap(graph, workloadConfig, failureConfig, seed)`. Bootstrap builds the world, creates deterministic RNG streams and the metrics sink, seeds the load-generator tick, metrics tick, and failures, and defaults the simulation horizon to the final workload segment's end time. The kernel's `RunTrace` contains deterministic execution facts such as event count and final time; aggregated metrics remain in the engine-owned sink and are passed separately to analysis.
 
 ### Example CLI flow
@@ -462,6 +467,7 @@ Load Generator -> Load Balancer -> Compute -> Database
 - Browser architecture studio for node/edge editing, resource parameters, workload phases, failure injection, validation, simulation, and result visualization
 - Go JSON API for service-catalog discovery, validation, YAML import, and asynchronous simulation jobs
 - Live virtual-time progress, resource pressure snapshots, cancellation, bounded concurrency, and web-run safety limits
+- Automatic weighted sampling for high-volume web runs, with proportional workload/capacity scaling and explicit sampling-factor disclosure
 
 ### Explicitly excluded from MVP
 

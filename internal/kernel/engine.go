@@ -97,7 +97,12 @@ func (e *Engine) Run() (RunTrace, error) {
 func (e *Engine) queuedRequests() int {
 	total := 0
 	for index := 0; index < e.World.Len(); index++ {
-		total += e.World.Get(ResourceID(index)).SnapshotMetrics().QueueDepth
+		snapshot := e.World.Get(ResourceID(index)).SnapshotMetrics()
+		if snapshot.StoredQueueDepth > 0 {
+			total += snapshot.StoredQueueDepth
+		} else {
+			total += snapshot.QueueDepth
+		}
 	}
 	return total
 }

@@ -2,6 +2,7 @@ package resources
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"infra-sim/internal/ir"
@@ -13,12 +14,19 @@ import (
 type ResourceDeps struct{ Downstream []kernel.ResourceID }
 
 func BuildWorld(graph *ir.Graph, workloadConfig ir.WorkloadConfig) (*kernel.World, map[ir.NodeID]kernel.ResourceID, error) {
+	return BuildWorldScaled(graph, workloadConfig, 1)
+}
+
+func BuildWorldScaled(graph *ir.Graph, workloadConfig ir.WorkloadConfig, trafficScale int) (*kernel.World, map[ir.NodeID]kernel.ResourceID, error) {
+	if trafficScale < 1 {
+		return nil, nil, fmt.Errorf("traffic scale must be at least 1")
+	}
 	world := &kernel.World{}
 	ids := make(map[ir.NodeID]kernel.ResourceID, len(graph.Nodes))
 	for _, node := range graph.Nodes {
 		ids[node.ID] = world.Reserve()
 	}
-	generator, err := buildWorkload(workloadConfig)
+	generator, err := buildWorkload(workloadConfig, trafficScale)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -28,7 +36,7 @@ func BuildWorld(graph *ir.Graph, workloadConfig ir.WorkloadConfig) (*kernel.Worl
 			return nil, nil, fmt.Errorf("node %s: %w", node.ID, err)
 		}
 		downstream := downstreamIDs(graph, node.ID, ids)
-		resource, err := construct(simClass, ids[node.ID], parameters, downstream, generator)
+		resource, err := construct(simClass, ids[node.ID], parameters, downstream, generator, trafficScale)
 		if err != nil {
 			return nil, nil, fmt.Errorf("node %s: %w", node.ID, err)
 		}
@@ -39,13 +47,13 @@ func BuildWorld(graph *ir.Graph, workloadConfig ir.WorkloadConfig) (*kernel.Worl
 	return world, ids, nil
 }
 
-func construct(simClass string, id kernel.ResourceID, parameters map[string]any, downstream []kernel.ResourceID, generator workload.Generator) (kernel.SimResource, error) {
+func construct(simClass string, id kernel.ResourceID, parameters map[string]any, downstream []kernel.ResourceID, generator workload.Generator, trafficScale int) (kernel.SimResource, error) {
 	switch simClass {
 	case "load_generator":
 		if len(downstream) != 1 {
 			return nil, fmt.Errorf("load generator requires exactly one downstream resource")
 		}
-		return &LoadGenerator{ResourceID: id, Downstream: downstream[0], Workload: generator}, nil
+		return &LoadGenerator{ResourceID: id, Downstream: downstream[0], Workload: generator, RequestWeight: trafficScale}, nil
 	case "load_balancer":
 		if len(downstream) == 0 {
 			return nil, fmt.Errorf("load balancer requires at least one backend")
@@ -74,7 +82,9 @@ func construct(simClass string, id kernel.ResourceID, parameters map[string]any,
 		if instances <= 0 || workers <= 0 || mean <= 0 || stddev < 0 {
 			return nil, fmt.Errorf("compute capacity and service-time parameters are invalid")
 		}
-		pool := &ServerPool{Capacity: instances * workers, ServiceTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}
+		reportedCapacity := instances * workers
+		scaledCapacity := max(1, int(math.Round(float64(reportedCapacity)/float64(trafficScale))))
+		pool := &ServerPool{Capacity: scaledCapacity, ReportedCapacity: reportedCapacity, MetricScale: trafficScale, ServiceTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}
 		return &ComputeResource{ResourceID: id, Pool: pool, Downstream: downstream[0]}, nil
 	case "database":
 		if len(downstream) != 0 {
@@ -95,22 +105,24 @@ func construct(simClass string, id kernel.ResourceID, parameters map[string]any,
 		if connections <= 0 || mean <= 0 || stddev < 0 {
 			return nil, fmt.Errorf("database capacity and query-time parameters are invalid")
 		}
-		return &DatabaseResource{ResourceID: id, ConnPool: &ConnectionPool{MaxConnections: connections}, QueryTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}, nil
+		scaledConnections := max(1, int(math.Round(float64(connections)/float64(trafficScale))))
+		return &DatabaseResource{ResourceID: id, ConnPool: &ConnectionPool{MaxConnections: scaledConnections, ReportedCapacity: connections, MetricScale: trafficScale}, QueryTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}, nil
 	default:
 		return nil, fmt.Errorf("unknown simulation class: %s", simClass)
 	}
 }
 
-func buildWorkload(config ir.WorkloadConfig) (workload.Generator, error) {
+func buildWorkload(config ir.WorkloadConfig, trafficScale int) (workload.Generator, error) {
+	scale := float64(trafficScale)
 	segments := make([]workload.Generator, 0, len(config.Segments))
 	for _, segment := range config.Segments {
 		start := kernel.SimTime(segment.StartTimeS * float64(kernel.Second))
 		end := kernel.SimTime(segment.EndTimeS * float64(kernel.Second))
 		switch segment.Type {
 		case "constant":
-			segments = append(segments, workload.Constant{RatePerSec: segment.Rate, StartTime: start, EndTime: end})
+			segments = append(segments, workload.Constant{RatePerSec: segment.Rate / scale, StartTime: start, EndTime: end})
 		case "ramp":
-			segments = append(segments, workload.Ramp{StartRate: segment.StartRate, EndRate: segment.EndRate, StartTime: start, EndTime: end})
+			segments = append(segments, workload.Ramp{StartRate: segment.StartRate / scale, EndRate: segment.EndRate / scale, StartTime: start, EndTime: end})
 		default:
 			return nil, fmt.Errorf("unsupported workload type %q", segment.Type)
 		}

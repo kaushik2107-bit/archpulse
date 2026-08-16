@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,8 @@ type JobProgress struct {
 	CompletedRequests uint64             `json:"completed_requests"`
 	QueuedRequests    int                `json:"queued_requests"`
 	Resources         []ResourcePressure `json:"resources"`
+	SamplingFactor    int                `json:"sampling_factor"`
+	EstimatedArrivals uint64             `json:"estimated_arrivals"`
 }
 
 type ResourcePressure struct {
@@ -90,9 +93,10 @@ type Server struct {
 }
 
 const (
-	webMaxEvents         = 8_000_000
-	webMaxQueuedRequests = 250_000
-	webRunTimeout        = 2 * time.Minute
+	webMaxEvents             = 8_000_000
+	webMaxQueuedRequests     = 250_000
+	webRunTimeout            = 2 * time.Minute
+	webTargetSampledRequests = 200_000
 )
 
 func New() *Server {
@@ -121,7 +125,9 @@ func (s *Server) startSimulation(writer http.ResponseWriter, request *http.Reque
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	engine, err := enginerunner.Bootstrap(&input.Graph, input.Workload, input.Failures, input.Seed)
+	estimatedArrivals := estimateArrivals(input.Workload)
+	samplingFactor := samplingFactorFor(estimatedArrivals)
+	engine, err := enginerunner.BootstrapWithTrafficScale(&input.Graph, input.Workload, input.Failures, input.Seed, samplingFactor)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
@@ -138,7 +144,7 @@ func (s *Server) startSimulation(writer http.ResponseWriter, request *http.Reque
 		response: JobResponse{
 			SimulationID: id,
 			Status:       "queued",
-			Progress:     JobProgress{HorizonNS: engine.Horizon},
+			Progress:     JobProgress{HorizonNS: engine.Horizon, SamplingFactor: samplingFactor, EstimatedArrivals: uint64(math.Round(estimatedArrivals))},
 			Resources:    resourceReferences(input.Graph.Nodes),
 		},
 	}
@@ -146,11 +152,11 @@ func (s *Server) startSimulation(writer http.ResponseWriter, request *http.Reque
 	s.jobs[id] = job
 	s.mu.Unlock()
 	response := job.response
-	go s.executeJob(job, engine, sink, input.Seed)
+	go s.executeJob(job, engine, sink, input.Seed, input.Graph)
 	writeJSON(writer, http.StatusAccepted, response)
 }
 
-func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *metrics.Sink, seed int64) {
+func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *metrics.Sink, seed int64, graph ir.Graph) {
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
@@ -172,6 +178,8 @@ func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *met
 			CompletedRequests: sink.Global().Latency.Count(),
 			QueuedRequests:    snapshot.QueuedRequests,
 			Resources:         make([]ResourcePressure, 0, len(snapshot.Resources)),
+			SamplingFactor:    job.response.Progress.SamplingFactor,
+			EstimatedArrivals: job.response.Progress.EstimatedArrivals,
 		}
 		if snapshot.Horizon > 0 {
 			progress.Percent = min(100, 100*float64(snapshot.VirtualTime)/float64(snapshot.Horizon))
@@ -196,7 +204,7 @@ func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *met
 		job.cancel()
 		return
 	}
-	result := model.NewRunResult(seed, trace, sink, analysis.Analyze(trace, sink))
+	result := model.NewRunResult(seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &graph))
 	s.mu.Lock()
 	job.response.Status = "completed"
 	job.response.Result = &result
@@ -312,7 +320,9 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	engine, err := enginerunner.Bootstrap(&input.Graph, input.Workload, input.Failures, input.Seed)
+	estimatedArrivals := estimateArrivals(input.Workload)
+	samplingFactor := samplingFactorFor(estimatedArrivals)
+	engine, err := enginerunner.BootstrapWithTrafficScale(&input.Graph, input.Workload, input.Failures, input.Seed, samplingFactor)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
@@ -342,7 +352,8 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 		writeError(writer, http.StatusInternalServerError, fmt.Errorf("unexpected metrics sink"))
 		return
 	}
-	result := model.NewRunResult(input.Seed, trace, sink, analysis.Analyze(trace, sink))
+	result := model.NewRunResult(input.Seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &input.Graph))
+	writer.Header().Set("X-Infra-Sim-Sampling-Factor", fmt.Sprint(samplingFactor))
 	resources := make([]ResourceReference, 0, len(input.Graph.Nodes))
 	for index, node := range input.Graph.Nodes {
 		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Type: node.ResourceType})
@@ -356,6 +367,23 @@ func resourceReferences(nodes []ir.Node) []ResourceReference {
 		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Type: node.ResourceType})
 	}
 	return resources
+}
+
+func estimateArrivals(workload ir.WorkloadConfig) float64 {
+	total := 0.0
+	for _, segment := range workload.Segments {
+		duration := segment.EndTimeS - segment.StartTimeS
+		if segment.Type == "ramp" {
+			total += duration * (segment.StartRate + segment.EndRate) / 2
+		} else {
+			total += duration * segment.Rate
+		}
+	}
+	return total
+}
+
+func samplingFactorFor(estimatedArrivals float64) int {
+	return max(1, int(math.Ceil(estimatedArrivals/webTargetSampledRequests)))
 }
 
 func validateArchitecture(input ArchitectureRequest) error {

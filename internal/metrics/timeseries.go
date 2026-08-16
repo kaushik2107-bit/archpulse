@@ -43,7 +43,11 @@ func NewBucketSeries(width kernel.SimTime) *BucketSeries {
 	return &BucketSeries{Width: width, counts: make(map[int64]uint64)}
 }
 
-func (s *BucketSeries) Increment(at kernel.SimTime) { s.counts[int64(at/s.Width)]++ }
+func (s *BucketSeries) Increment(at kernel.SimTime) { s.IncrementBy(at, 1) }
+
+func (s *BucketSeries) IncrementBy(at kernel.SimTime, count uint64) {
+	s.counts[int64(at/s.Width)] += count
+}
 
 func (s *BucketSeries) Points() []Point {
 	if len(s.counts) == 0 {

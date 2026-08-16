@@ -3,9 +3,11 @@ package resources
 import "infra-sim/internal/kernel"
 
 type ConnectionPool struct {
-	MaxConnections int
-	InUse          int
-	Waiters        []*kernel.RequestState
+	MaxConnections   int
+	InUse            int
+	Waiters          []*kernel.RequestState
+	MetricScale      int
+	ReportedCapacity int
 }
 
 func (p *ConnectionPool) Acquire(request *kernel.RequestState) AdmitResult {

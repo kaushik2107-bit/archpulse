@@ -17,11 +17,18 @@ type Histogram struct {
 func NewHistogram() *Histogram { return &Histogram{buckets: make(map[int]uint64)} }
 
 func (h *Histogram) Record(duration kernel.SimTime) {
+	h.RecordWeighted(duration, 1)
+}
+
+func (h *Histogram) RecordWeighted(duration kernel.SimTime, weight uint64) {
+	if weight == 0 {
+		weight = 1
+	}
 	microseconds := math.Max(1, float64(duration)/float64(kernel.Microsecond))
 	bucket := int(math.Ceil(math.Log(microseconds) / math.Log(1.01)))
-	h.buckets[bucket]++
-	h.count++
-	h.sumUS += microseconds
+	h.buckets[bucket] += weight
+	h.count += weight
+	h.sumUS += microseconds * float64(weight)
 }
 
 func (h *Histogram) Quantile(percentile float64) float64 {

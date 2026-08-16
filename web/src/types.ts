@@ -70,6 +70,13 @@ export interface ResourceVerdict {
   utilization_pct: number
   queue_depth: number
   queue_slope_per_sec: number
+  peak_utilization_pct: number
+  max_queue_depth: number
+  final_queue_depth: number
+  saturation_fraction_pct: number
+  first_queued_time_ns?: number
+  score: number
+  classification: 'healthy' | 'transient_pressure' | 'constraint' | 'root_constraint' | 'upstream_symptom'
   is_bottleneck: boolean
   reason: string
 }
@@ -84,6 +91,7 @@ export interface RunResponse {
     bottleneck: {
       plateau_start_time_ns: number
       plateau_throughput_rps: number
+      throughput_drops?: Array<{ time_ns: number; before_rps: number; after_rps: number; drop_pct: number }>
       ranked_resources: ResourceVerdict[]
     }
   }
@@ -97,6 +105,8 @@ export interface JobProgress {
   events_processed: number
   completed_requests: number
   queued_requests: number
+  sampling_factor: number
+  estimated_arrivals: number
   resources: Array<{
     resource_id: number
     in_flight: number

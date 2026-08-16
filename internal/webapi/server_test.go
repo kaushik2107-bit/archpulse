@@ -190,3 +190,18 @@ func TestSafetyLimitFailsJobWithoutCrashingServer(t *testing.T) {
 	}
 	t.Fatalf("limited job did not fail; last status %s", job.Status)
 }
+
+func TestSampleArchitectureUsesAutomaticWeightedSampling(t *testing.T) {
+	workload := ir.WorkloadConfig{Segments: []ir.WorkloadSegment{
+		{Type: "constant", Rate: 5_000, StartTimeS: 0, EndTimeS: 60},
+		{Type: "ramp", StartRate: 5_000, EndRate: 50_000, StartTimeS: 60, EndTimeS: 180},
+		{Type: "constant", Rate: 50_000, StartTimeS: 180, EndTimeS: 300},
+	}}
+	estimated := estimateArrivals(workload)
+	if estimated != 9_600_000 {
+		t.Fatalf("estimated arrivals = %.0f, want 9600000", estimated)
+	}
+	if factor := samplingFactorFor(estimated); factor != 48 {
+		t.Fatalf("sampling factor = %d, want 48", factor)
+	}
+}

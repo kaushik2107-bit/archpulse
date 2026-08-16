@@ -294,7 +294,7 @@ export default function App() {
             <MiniMap pannable zoomable nodeColor={(node) => node.data.category === 'database' ? '#2d79c7' : node.data.category === 'compute' ? '#9b62d1' : '#e39018'} />
           </ReactFlow>
           {nodes.length === 0 && <div className="canvas-empty"><div className="canvas-empty__icon"><Workflow size={28} /></div><strong>Build your first architecture</strong><p>Add services from the palette and connect them, or load an existing Infra-Sim YAML file.</p><button className="button primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Choose YAML file</button></div>}
-          {running && jobProgress && <div className="run-progress"><div className="run-progress__top"><span>Simulating virtual traffic</span><strong>{jobProgress.percent.toFixed(0)}%</strong></div><div className="progress-track"><span style={{ width: `${Math.max(1, jobProgress.percent)}%` }} /></div><div className="run-progress__meta"><span>{(jobProgress.completed_requests ?? 0).toLocaleString()} served</span><span>{jobProgress.queued_requests.toLocaleString()} queued</span><span>{jobProgress.events_processed.toLocaleString()} events</span></div></div>}
+          {running && jobProgress && <div className="run-progress"><div className="run-progress__top"><span>Simulating virtual traffic {jobProgress.sampling_factor > 1 && <b>· {jobProgress.sampling_factor}× weighted sample</b>}</span><strong>{jobProgress.percent.toFixed(0)}%</strong></div><div className="progress-track"><span style={{ width: `${Math.max(1, jobProgress.percent)}%` }} /></div><div className="run-progress__meta"><span>{(jobProgress.completed_requests ?? 0).toLocaleString()} represented requests served</span><span>{jobProgress.queued_requests.toLocaleString()} queued</span><span>{jobProgress.events_processed.toLocaleString()} simulated events</span></div></div>}
         </section>
 
         <aside className="inspector panel">
@@ -322,7 +322,7 @@ export default function App() {
         <div className="tab-content">
           {bottomTab === 'workload' && <WorkloadEditor segments={workload} onChange={setWorkload} />}
           {bottomTab === 'failures' && <FailureEditor failures={failures} nodes={nodes} onChange={setFailures} />}
-          {bottomTab === 'results' && <Results result={result} />}
+          {bottomTab === 'results' && <Results result={result} samplingFactor={jobProgress?.sampling_factor ?? 1} />}
         </div>
       </section>
     </div>
@@ -365,17 +365,17 @@ function FailureEditor({ failures, nodes, onChange }: { failures: FailureConfig[
   </div>
 }
 
-function Results({ result }: { result: RunResponse | null }) {
+function Results({ result, samplingFactor }: { result: RunResponse | null; samplingFactor: number }) {
   if (!result) return <div className="results-empty"><Play size={24} /><div><strong>No simulation results yet</strong><p>Validate the graph, then run the simulation to inspect throughput, latency, and bottlenecks.</p></div></div>
   const data = result.result
   const primary = data.bottleneck.ranked_resources?.find((item) => item.is_bottleneck)
   const resource = result.resources.find((item) => item.resource_id === primary?.resource_id)
   return <div className="results-grid">
     <div className="metric-cards">
-      <Metric label="Requests served" value={data.latency.count.toLocaleString()} detail={`${data.trace.TotalEventsProcessed.toLocaleString()} events`} />
+      <Metric label="Requests served" value={data.latency.count.toLocaleString()} detail={`${data.trace.TotalEventsProcessed.toLocaleString()} events${samplingFactor > 1 ? ` · ${samplingFactor}× sample` : ''}`} />
       <Metric label="p95 latency" value={formatLatency(data.latency.p95_us)} detail={`p50 ${formatLatency(data.latency.p50_us)}`} />
       <Metric label="p99 latency" value={formatLatency(data.latency.p99_us)} detail={`mean ${formatLatency(data.latency.mean_us)}`} />
-      <Metric label="Primary bottleneck" value={resource?.node_id ?? 'None detected'} detail={primary ? `${primary.utilization_pct.toFixed(0)}% utilized` : 'No sustained queue growth'} warning={Boolean(primary)} />
+      <Metric label="Primary bottleneck" value={resource?.node_id ?? 'None detected'} detail={primary ? primary.reason : 'No sustained capacity constraint detected'} warning={Boolean(primary)} />
     </div>
     <div className="chart-card"><div className="chart-heading"><div><span className="eyebrow">Served throughput</span><h3>Requests per second</h3></div><div className="chart-meta"><Clock3 size={14} /> {(data.trace.FinalTime / 1e9).toFixed(0)}s virtual time</div></div><MetricChart points={data.throughput_rps ?? []} /></div>
   </div>

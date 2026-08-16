@@ -11,11 +11,13 @@ const (
 )
 
 type ServerPool struct {
-	Capacity    int
-	InFlight    int
-	Queue       []*kernel.RequestState
-	QueueLimit  int
-	ServiceTime ServiceTimeSampler
+	Capacity         int
+	InFlight         int
+	Queue            []*kernel.RequestState
+	QueueLimit       int
+	ServiceTime      ServiceTimeSampler
+	MetricScale      int
+	ReportedCapacity int
 }
 
 func (p *ServerPool) TryAdmit(request *kernel.RequestState) AdmitResult {

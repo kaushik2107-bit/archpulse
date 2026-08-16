@@ -46,7 +46,12 @@ func (d *DatabaseResource) startQuery(at kernel.SimTime, request *kernel.Request
 	return []kernel.Event{{Time: at + duration, Type: kernel.ServiceCompleted, Target: d.ResourceID, Payload: dbQueryDonePayload{Request: request, Upstream: upstream}}}
 }
 func (d *DatabaseResource) SnapshotMetrics() kernel.ResourceMetricsSnapshot {
-	return kernel.ResourceMetricsSnapshot{ResourceID: d.ResourceID, InFlight: d.ConnPool.InUse, QueueDepth: len(d.ConnPool.Waiters), Capacity: d.ConnPool.MaxConnections, UtilizationPct: d.ConnPool.UtilizationPct()}
+	scale := max(1, d.ConnPool.MetricScale)
+	capacity := d.ConnPool.ReportedCapacity
+	if capacity <= 0 {
+		capacity = d.ConnPool.MaxConnections
+	}
+	return kernel.ResourceMetricsSnapshot{ResourceID: d.ResourceID, InFlight: min(capacity, d.ConnPool.InUse*scale), QueueDepth: len(d.ConnPool.Waiters) * scale, StoredQueueDepth: len(d.ConnPool.Waiters), Capacity: capacity, UtilizationPct: d.ConnPool.UtilizationPct()}
 }
 func (d *DatabaseResource) ApplyFailure(failure kernel.ResourceDegradedPayload) {
 	d.degraded = true

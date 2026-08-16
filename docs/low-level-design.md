@@ -1563,7 +1563,27 @@ Note what Bootstrap deliberately does NOT do: it doesn't itself construct the `C
 
 ---
 
-## 13. Bottleneck Analyzer (MVP algorithm, concretely)
+## 13. Bottleneck Analyzer
+
+The implemented analyzer evaluates the complete metric history rather than only
+the first throughput plateau. For every resource it records persistent queue
+frequency, maximum and final queue depth, maximum queue growth, peak utilization,
+and the fraction of samples at 90% or greater utilization. A resource is a
+constraint only when queueing is sustained and is supported by utilization or
+queue-growth evidence; isolated queue spikes are classified as transient pressure.
+
+`AnalyzeWithGraph` also computes graph reachability. When a downstream constraint
+begins queueing no later than a constrained upstream caller, the downstream node
+is ranked as the root constraint and the caller as an upstream backpressure
+symptom. This is based only on graph direction and metric evidence, not AWS service
+types. The topology-free `Analyze` entry point remains available for compatibility.
+
+The report includes material served-throughput drops found by comparing adjacent
+five-second windows. This exposes regime changes caused by failures even when an
+earlier ramp or plateau would otherwise hide them. The fields shown in the code
+sample below are retained for compatibility; the implementation additionally
+returns peak/max/final evidence, score, classification, first queue time, and
+throughput-drop records.
 
 ```go
 // internal/analysis/bottleneck.go
@@ -1658,6 +1678,8 @@ The visualizer flow is:
 No resource-class changes were needed to add the visualizer. Vite proxies `/api` to Go during development; production builds into `web/dist`, which the Go web command serves with SPA fallback routing. Project persistence, authentication, collaboration, export, durable job history, and distributed workers remain later concerns.
 
 Web jobs are limited to two concurrent runs, eight million events, 250,000 queued requests, and two wall-clock minutes. These limits prevent high-rate scenarios from exhausting process memory. At each virtual-second policy tick, the kernel publishes a compact snapshot rather than streaming individual request events; the UI uses it to animate active edges and color nodes green, yellow, or red based on utilization and queue pressure. This preserves simulation performance while still making system behavior visible.
+
+Before a web run, the API analytically estimates offered arrivals across constant and ramp segments. Runs above 200,000 estimated arrivals use a deterministic sampling factor `ceil(estimated_arrivals / 200000)`. Arrival rates and resource capacities are divided by that factor; each representative `RequestState` carries the factor as its weight. Throughput, completion, rejection, and queue metrics multiply sampled observations by this weight, while latency histograms treat the observation as a weighted sample. The UI reports the factor, and exact CLI behavior remains unchanged at factor 1. Safety queue limits count stored representative objects rather than weighted queue depth so they protect actual memory consumption.
 
 ---
 

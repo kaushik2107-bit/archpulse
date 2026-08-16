@@ -36,13 +36,15 @@ func (s *Sink) Observe(event kernel.Event, world *kernel.World) {
 	case kernel.ResponseSent:
 		payload := event.Payload.(kernel.ServiceCompletedPayload)
 		latency := event.Time - payload.Request.ArrivalTime
-		s.global.Throughput.Increment(event.Time)
-		s.global.Latency.Record(latency)
-		s.perResource[event.Target].Throughput.Increment(event.Time)
-		s.perResource[event.Target].Latency.Record(latency)
+		weight := requestWeight(payload.Request)
+		s.global.Throughput.IncrementBy(event.Time, weight)
+		s.global.Latency.RecordWeighted(latency, weight)
+		s.perResource[event.Target].Throughput.IncrementBy(event.Time, weight)
+		s.perResource[event.Target].Latency.RecordWeighted(latency, weight)
 	case kernel.RequestRejected:
-		s.global.Rejected++
-		s.perResource[event.Target].Rejected++
+		weight := requestWeight(event.Payload.(kernel.RequestArrivedPayload).Request)
+		s.global.Rejected += weight
+		s.perResource[event.Target].Rejected += weight
 	case kernel.PolicyTick:
 		for index := 0; index < world.Len(); index++ {
 			id := kernel.ResourceID(index)
@@ -51,6 +53,13 @@ func (s *Sink) Observe(event kernel.Event, world *kernel.World) {
 			s.perResource[id].QueueDepth.Record(event.Time, float64(snapshot.QueueDepth))
 		}
 	}
+}
+
+func requestWeight(request *kernel.RequestState) uint64 {
+	if request.Weight <= 0 {
+		return 1
+	}
+	return uint64(request.Weight)
 }
 
 func (s *Sink) Global() *ResourceMetrics                            { return s.global }

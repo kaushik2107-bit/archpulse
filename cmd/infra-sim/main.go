@@ -104,7 +104,7 @@ func runSimulation(args []string, stdout io.Writer) error {
 	if !ok {
 		return errors.New("engine metrics sink has unexpected type")
 	}
-	result := model.NewRunResult(*seed, trace, sink, analysis.Analyze(trace, sink))
+	result := model.NewRunResult(*seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, graph))
 	if *out != "" {
 		file, err := os.Create(*out)
 		if err != nil {

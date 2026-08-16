@@ -85,6 +85,7 @@ h2, h3, p { margin: 0; }
 .run-progress__top, .run-progress__meta { display: flex; align-items: center; justify-content: space-between; }
 .run-progress__top { color: #bac6d4; font-size: 10px; }
 .run-progress__top strong { color: #62d9ad; font: 600 10px 'Cascadia Code', Consolas, monospace; }
+.run-progress__top b { color: #f3b346; font-weight: 600; }
 .progress-track { height: 4px; overflow: hidden; border-radius: 4px; background: #23303e; margin: 7px 0 6px; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2fc78f, #7ce2bc); transition: width .35s ease; }
 .run-progress__meta { justify-content: flex-start; gap: 18px; color: #6f8094; font-size: 8px; }

@@ -2,7 +2,7 @@
 
 Infra-Sim is a deterministic discrete-event simulator for exploring throughput, latency, queueing, and bottlenecks in AWS-style architectures.
 
-The MVP supports a YAML-defined `Load Generator -> ALB -> EC2/ECS -> RDS PostgreSQL` DAG, constant and ramp workload segments, seeded service-time distributions, fixed-time database latency degradation, streaming metrics, and plateau-oriented bottleneck reporting.
+The MVP supports a YAML-defined `Load Generator -> ALB -> EC2/ECS -> RDS PostgreSQL` DAG, constant and ramp workload segments, seeded service-time distributions, fixed-time database latency degradation, streaming metrics, and whole-run topology-aware bottleneck reporting.
 
 ## Run
 
@@ -35,6 +35,8 @@ The studio also supports editing resource capacity and latency, defining contigu
 Web simulations run as background jobs. During a run, the canvas shows virtual-time progress, completed and queued request counts, animated request paths, and live node pressure: green for active capacity, yellow above 70% utilization, and red for saturation or queueing. Runs can be cancelled from the header.
 
 To protect the local process from accidental overload, web runs are limited to two concurrent simulations, eight million processed events, 250,000 queued requests, and two minutes of wall-clock execution. Crossing a limit fails that job with an explicit message while keeping the application available. These safeguards apply to the web API; CLI runs remain unbounded unless stopped by their configured horizon.
+
+Large web workloads automatically use deterministic weighted sampling. The API estimates offered arrivals and targets about 200,000 representative requests; workload rates and resource capacities are scaled by the same factor, while throughput, completed-request, rejection, and queue metrics are weighted back to their represented values. The UI always displays the active sampling factor. Small runs and CLI simulations remain exact (`1×`).
 
 ### Development
 

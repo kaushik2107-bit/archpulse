@@ -12,6 +12,9 @@ type RequestState struct {
 	SizeBytes     int64
 	Deadline      SimTime
 	RetriesSoFar  int
+	// Weight is the number of real requests represented by this sampled request.
+	// Exact simulations use 1.
+	Weight int
 }
 
 type HopRecord struct {

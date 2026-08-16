@@ -11,12 +11,15 @@ type SimResource interface {
 }
 
 type ResourceMetricsSnapshot struct {
-	ResourceID     ResourceID
-	InFlight       int
-	QueueDepth     int
-	Capacity       int
-	UtilizationPct float64
-	Extra          map[string]float64
+	ResourceID ResourceID
+	InFlight   int
+	QueueDepth int
+	// StoredQueueDepth counts in-memory sampled request objects. QueueDepth may
+	// be weighted for reporting and should not be used as a memory guardrail.
+	StoredQueueDepth int
+	Capacity         int
+	UtilizationPct   float64
+	Extra            map[string]float64
 }
 
 // MetricsSink is owned by the kernel so metrics implementations can depend on

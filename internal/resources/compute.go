@@ -44,7 +44,12 @@ func (c *ComputeResource) SnapshotMetrics() kernel.ResourceMetricsSnapshot {
 	if c.Pool.Capacity > 0 {
 		utilization = 100 * float64(c.Pool.InFlight) / float64(c.Pool.Capacity)
 	}
-	return kernel.ResourceMetricsSnapshot{ResourceID: c.ResourceID, InFlight: c.Pool.InFlight, QueueDepth: len(c.Pool.Queue), Capacity: c.Pool.Capacity, UtilizationPct: utilization}
+	scale := max(1, c.Pool.MetricScale)
+	capacity := c.Pool.ReportedCapacity
+	if capacity <= 0 {
+		capacity = c.Pool.Capacity
+	}
+	return kernel.ResourceMetricsSnapshot{ResourceID: c.ResourceID, InFlight: min(capacity, c.Pool.InFlight*scale), QueueDepth: len(c.Pool.Queue) * scale, StoredQueueDepth: len(c.Pool.Queue), Capacity: capacity, UtilizationPct: utilization}
 }
 func (c *ComputeResource) ApplyFailure(kernel.ResourceDegradedPayload) {}
 func (c *ComputeResource) ClearFailure()                               {}

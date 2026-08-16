@@ -11,7 +11,11 @@ import (
 )
 
 func Bootstrap(graph *ir.Graph, workloadConfig ir.WorkloadConfig, failureConfig []ir.FailureConfig, seed int64) (*kernel.Engine, error) {
-	world, ids, err := resources.BuildWorld(graph, workloadConfig)
+	return BootstrapWithTrafficScale(graph, workloadConfig, failureConfig, seed, 1)
+}
+
+func BootstrapWithTrafficScale(graph *ir.Graph, workloadConfig ir.WorkloadConfig, failureConfig []ir.FailureConfig, seed int64, trafficScale int) (*kernel.Engine, error) {
+	world, ids, err := resources.BuildWorldScaled(graph, workloadConfig, trafficScale)
 	if err != nil {
 		return nil, fmt.Errorf("build world: %w", err)
 	}
