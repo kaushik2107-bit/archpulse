@@ -25,9 +25,17 @@ type RunResult struct {
 }
 
 type ResourceTimeline struct {
-	ResourceID  kernel.ResourceID `json:"resource_id"`
-	Utilization []metrics.Point   `json:"utilization_pct"`
-	QueueDepth  []metrics.Point   `json:"queue_depth"`
+	ResourceID  kernel.ResourceID  `json:"resource_id"`
+	Utilization []metrics.Point    `json:"utilization_pct"`
+	QueueDepth  []metrics.Point    `json:"queue_depth"`
+	Instances   []InstanceTimeline `json:"instances,omitempty"`
+}
+
+type InstanceTimeline struct {
+	Instance    int             `json:"instance"`
+	Utilization []metrics.Point `json:"utilization_pct"`
+	QueueDepth  []metrics.Point `json:"queue_depth"`
+	Degraded    []metrics.Point `json:"degraded"`
 }
 
 func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottleneck analysis.BottleneckReport) RunResult {
@@ -44,9 +52,14 @@ func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottlen
 	}
 	for id := kernel.ResourceID(0); int(id) < len(sink.PerResource()); id++ {
 		resource := sink.PerResource()[id]
-		result.ResourceTimelines = append(result.ResourceTimelines, ResourceTimeline{
+		timeline := ResourceTimeline{
 			ResourceID: id, Utilization: resource.Utilization.Points, QueueDepth: resource.QueueDepth.Points,
-		})
+		}
+		for instance := 1; instance <= len(sink.PerInstance()[id]); instance++ {
+			member := sink.PerInstance()[id][instance]
+			timeline.Instances = append(timeline.Instances, InstanceTimeline{Instance: instance, Utilization: member.Utilization.Points, QueueDepth: member.QueueDepth.Points, Degraded: member.Degraded.Points})
+		}
+		result.ResourceTimelines = append(result.ResourceTimelines, timeline)
 	}
 	return result
 }

@@ -27,8 +27,8 @@ func TestBuildWorldScaledReducesStoredCapacityAndPreservesReportedCapacity(t *te
 	if loadGenerator.RequestWeight != 20 {
 		t.Fatalf("request weight = %d, want 20", loadGenerator.RequestWeight)
 	}
-	if compute.Pool.Capacity != 20 || compute.SnapshotMetrics().Capacity != 400 {
-		t.Fatalf("compute capacities stored=%d reported=%d", compute.Pool.Capacity, compute.SnapshotMetrics().Capacity)
+	if len(compute.Instances) != 4 || compute.Instances[0].Pool.Capacity != 5 || compute.SnapshotMetrics().Capacity != 400 {
+		t.Fatalf("compute replicas=%d per-replica stored=%d reported=%d", len(compute.Instances), compute.Instances[0].Pool.Capacity, compute.SnapshotMetrics().Capacity)
 	}
 	if database.ConnPool.MaxConnections != 10 || database.SnapshotMetrics().Capacity != 200 {
 		t.Fatalf("database capacities stored=%d reported=%d", database.ConnPool.MaxConnections, database.SnapshotMetrics().Capacity)

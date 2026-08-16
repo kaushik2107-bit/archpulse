@@ -270,11 +270,11 @@ export default function App() {
     const pressureByNode = new Map(job.progress.resources.map((resource) => {
       const nodeID = referenceByResource.get(resource.resource_id) ?? ''
       const pressure = classifyPressure(resource.utilization_pct, resource.queue_depth, resource.in_flight > 0)
-      return [nodeID, { pressure, utilization: resource.utilization_pct, queue: resource.queue_depth }] as const
+      return [nodeID, { pressure, utilization: resource.utilization_pct, queue: resource.queue_depth, instances: resource.instances ?? [] }] as const
     }))
     setNodes((current) => current.map((node) => {
       const live = pressureByNode.get(node.id)
-      return live ? { ...node, data: { ...node.data, pressure: live.pressure, liveUtilization: live.utilization, liveQueueDepth: live.queue } } : node
+      return live ? { ...node, data: { ...node.data, pressure: live.pressure, liveUtilization: live.utilization, liveQueueDepth: live.queue, liveInstances: live.instances } } : node
     }))
   }
 
@@ -288,11 +288,19 @@ export default function App() {
       const utilization = maxValueInWindow(timeline.utilization_pct, at, 5e9)
       const queue = maxValueInWindow(timeline.queue_depth, at, 5e9)
       const pressure = classifyPressure(utilization, queue, trafficActive)
-      return [nodeByResource.get(timeline.resource_id) ?? '', { pressure, utilization, queue }] as const
+      const instances = (timeline.instances ?? []).map((member) => ({
+        instance: member.instance,
+        utilization_pct: maxValueInWindow(member.utilization_pct, at, 5e9),
+        queue_depth: maxValueInWindow(member.queue_depth, at, 5e9),
+        degraded: valueAt(member.degraded, at) > 0,
+        in_flight: 0,
+        capacity: 0,
+      }))
+      return [nodeByResource.get(timeline.resource_id) ?? '', { pressure, utilization, queue, instances }] as const
     }))
     setNodes((current) => current.map((node) => {
       const frame = pressureByNode.get(node.id)
-      return frame ? { ...node, data: { ...node.data, pressure: frame.pressure, liveUtilization: frame.utilization, liveQueueDepth: frame.queue } } : node
+      return frame ? { ...node, data: { ...node.data, pressure: frame.pressure, liveUtilization: frame.utilization, liveQueueDepth: frame.queue, liveInstances: frame.instances } } : node
     }))
   }
 
@@ -446,12 +454,13 @@ function WorkloadEditor({ segments, onChange }: { segments: WorkloadSegment[]; o
 
 function FailureEditor({ failures, nodes, onChange }: { failures: FailureConfig[]; nodes: ServiceNode[]; onChange: (failures: FailureConfig[]) => void }) {
   function update(index: number, patch: Partial<FailureConfig>) { onChange(failures.map((failure, current) => current === index ? { ...failure, ...patch } : failure)) }
-  function add() { const target = nodes.find((node) => node.data.category === 'database')?.id ?? nodes[0]?.id ?? ''; onChange(failures.concat({ target, at_s: 10, latency_multiplier: 2 })) }
+  function add() { const target = nodes.find((node) => node.data.category === 'compute')?.id ?? nodes.find((node) => node.data.category === 'database')?.id ?? nodes[0]?.id ?? ''; onChange(failures.concat({ target, instance: 0, at_s: 10, latency_multiplier: 2 })) }
   return <div className="editor-section">
     <div className="editor-intro"><div><span className="eyebrow">Chaos controls</span><h3>Scheduled degradation</h3></div><button className="button ghost" onClick={add}><Plus size={15} /> Add failure</button></div>
     {failures.length === 0 ? <div className="wide-empty">No failures configured. The simulation will run under normal conditions.</div> : <div className="failure-list">{failures.map((failure, index) => <div className="failure-card" key={index}>
       <AlertTriangle size={18} />
-      <label>Target<select value={failure.target} onChange={(event) => update(index, { target: event.target.value })}>{nodes.map((node) => <option key={node.id} value={node.id}>{node.data.label} · {node.id}</option>)}</select></label>
+      <label>Target<select value={failure.target} onChange={(event) => update(index, { target: event.target.value, instance: 0 })}>{nodes.map((node) => <option key={node.id} value={node.id}>{node.data.label} · {node.id}</option>)}</select></label>
+      <label>Scope<select value={failure.instance ?? 0} onChange={(event) => update(index, { instance: Number(event.target.value) })}><option value="0">Entire service</option>{Array.from({ length: Number(nodes.find((node) => node.id === failure.target)?.data.parameters.instances ?? 0) }, (_, member) => <option key={member + 1} value={member + 1}>Instance {member + 1}</option>)}</select></label>
       <label>At <span>sec</span><input type="number" min="0" value={failure.at_s} onChange={(event) => update(index, { at_s: Number(event.target.value) })} /></label>
       <label>Latency multiplier <span>×</span><input type="number" min="1" step="0.5" value={failure.latency_multiplier} onChange={(event) => update(index, { latency_multiplier: Number(event.target.value) })} /></label>
       <button className="icon-button" aria-label="Remove failure" onClick={() => onChange(failures.filter((_, current) => current !== index))}><X size={16} /></button>

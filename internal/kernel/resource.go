@@ -20,6 +20,16 @@ type ResourceMetricsSnapshot struct {
 	Capacity         int
 	UtilizationPct   float64
 	Extra            map[string]float64
+	Instances        []InstanceMetricsSnapshot
+}
+
+type InstanceMetricsSnapshot struct {
+	Instance       int
+	InFlight       int
+	QueueDepth     int
+	Capacity       int
+	UtilizationPct float64
+	Degraded       bool
 }
 
 // MetricsSink is owned by the kernel so metrics implementations can depend on

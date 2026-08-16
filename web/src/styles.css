@@ -116,7 +116,9 @@ h2, h3, p { margin: 0; }
 .react-flow__edge.selected .react-flow__edge-path { stroke: var(--accent); }
 .simulation-active .react-flow__edge-path { stroke: #42d39f; stroke-width: 2.5; filter: drop-shadow(0 0 3px rgba(66,211,159,.25)); }
 
-.service-node { min-width: 190px; display: flex; align-items: center; gap: 11px; padding: 12px 14px; border: 1px solid #334154; border-radius: 10px; color: var(--text); background: linear-gradient(145deg, #17222f, #111923); box-shadow: 0 12px 32px rgba(0,0,0,.28), inset 3px 0 0 var(--node-color); transition: .15s ease; }
+.service-node { position: relative; min-width: 190px; padding: 12px 14px; border: 1px solid #334154; border-radius: 10px; color: var(--text); background: linear-gradient(145deg, #17222f, #111923); box-shadow: 0 12px 32px rgba(0,0,0,.28), inset 3px 0 0 var(--node-color); transition: .15s ease; }
+.service-node__header { display: flex; align-items: center; gap: 11px; }
+.service-node.service-cluster { width: 272px; padding: 13px; }
 .service-node:hover { border-color: #52647a; }
 .service-node.selected { border-color: var(--node-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--node-color) 18%, transparent), 0 16px 36px rgba(0,0,0,.34), inset 3px 0 0 var(--node-color); }
 .service-node.pressure-active { border: 2px solid #43d19e; box-shadow: 0 0 0 2px rgba(67,209,158,.12), 0 12px 32px rgba(0,0,0,.3), inset 3px 0 0 #43d19e; }
@@ -128,6 +130,15 @@ h2, h3, p { margin: 0; }
 .service-node strong { max-width: 125px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .service-node span { color: #718196; font-family: 'Cascadia Code', Consolas, monospace; font-size: 8px; margin-top: 4px; }
 .service-node em { display: block; color: #9cafc2; font-size: 8px; font-style: normal; margin-top: 4px; }
+.instance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 11px; padding-top: 10px; border-top: 1px solid #2d3b4c; }
+.instance-card { min-width: 0; display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid rgba(67,209,158,.42); border-radius: 7px; color: #54dbaa; background: rgba(67,209,158,.06); }
+.instance-card > div { min-width: 0; }
+.instance-card b, .instance-card small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.instance-card b { color: #cbd6e2; font-size: 8px; }
+.instance-card small { color: #718397; font: 7px 'Cascadia Code', Consolas, monospace; margin-top: 3px; }
+.instance-card.warning { color: #e6ae39; border-color: rgba(230,174,57,.55); background: rgba(230,174,57,.08); }
+.instance-card.critical { color: #f05d72; border-color: rgba(240,93,114,.62); background: rgba(240,93,114,.09); box-shadow: 0 0 10px rgba(240,93,114,.1); }
+.instance-card.critical small { color: #ec7b8a; }
 .node-handle { width: 8px!important; height: 8px!important; border: 2px solid #0d141d!important; background: var(--node-color)!important; }
 
 .inspector-content { padding: 4px 16px 18px; }
@@ -184,7 +195,7 @@ input:focus, select:focus { border-color: #cf8111; box-shadow: 0 0 0 2px rgba(25
 .phase-arrow { align-self: end; margin-bottom: 8px; color: #4f6074; }
 .icon-button { width: 29px; height: 29px; border: 1px solid transparent; border-radius: 7px; display: grid; place-items: center; cursor: pointer; background: transparent; color: #637389; }
 .icon-button:hover { color: #ff7f90; border-color: rgba(255,102,122,.2); background: rgba(255,102,122,.05); }
-.failure-card { min-width: 440px; display: grid; grid-template-columns: 24px 1.5fr .7fr 1fr 30px; gap: 10px; align-items: end; padding: 11px; border: 1px solid rgba(255,153,0,.2); border-radius: 9px; background: linear-gradient(100deg, rgba(255,153,0,.05), var(--surface)); }
+.failure-card { min-width: 620px; display: grid; grid-template-columns: 24px 1.5fr 1fr .7fr 1fr 30px; gap: 10px; align-items: end; padding: 11px; border: 1px solid rgba(255,153,0,.2); border-radius: 9px; background: linear-gradient(100deg, rgba(255,153,0,.05), var(--surface)); }
 .failure-card > svg { align-self: center; color: #f6a82a; }
 .failure-card input, .failure-card select { width: 100%; }
 .wide-empty { max-width: 600px; }

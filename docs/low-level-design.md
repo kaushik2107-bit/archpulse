@@ -1601,6 +1601,30 @@ trailing five-second virtual-time maximum. This visual debounce prevents short
 services from alternating between busy and idle on adjacent ticks while retaining
 fast escalation and a bounded decay after pressure clears.
 
+### 13.3 Logical service groups and replicas
+
+A graph node remains the stable routing and analysis boundary, but a resource may
+expose individually scheduled replicas. EC2 instances and ECS tasks currently use
+this model. Each replica owns its worker pool, in-flight count, queue, utilization,
+and degradation state. New requests are assigned to the least-loaded replica with
+round-robin tie breaking. Aggregate node metrics are derived from the members so
+the generic bottleneck analyzer remains graph-oriented.
+
+`FailureConfig.instance` is one-based; zero or omission targets the whole service.
+The failure injector carries this scope in `ResourceDegradedPayload`, and the
+compute group applies the latency multiplier only to the selected member. The
+kernel snapshot type and result timelines expose a generic instance collection,
+allowing other service implementations to adopt replicas without changing the
+web API shape. YAML example:
+
+```yaml
+failures:
+  - target: api
+    instance: 2
+    at_s: 120
+    latency_multiplier: 5
+```
+
 ```go
 // internal/analysis/bottleneck.go
 package analysis

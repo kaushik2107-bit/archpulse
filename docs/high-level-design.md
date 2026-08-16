@@ -409,6 +409,12 @@ browser can replay or scrub these metrics over virtual time, animating request-p
 edges and moving nodes between idle, active, warning, and critical states without
 storing individual request events.
 
+Multi-instance services are represented as logical resource groups: the graph and
+bottleneck analyzer see one service boundary, while scheduling, failures, live
+pressure, and replay telemetry can address individual replicas. This avoids graph
+explosion and preserves the option to add replica semantics to future service
+profiles beyond the initial EC2/ECS implementation.
+
 For the Go MVP, assembly is centralized in `engine.Bootstrap(graph, workloadConfig, failureConfig, seed)`. Bootstrap builds the world, creates deterministic RNG streams and the metrics sink, seeds the load-generator tick, metrics tick, and failures, and defaults the simulation horizon to the final workload segment's end time. The kernel's `RunTrace` contains deterministic execution facts such as event count and final time; aggregated metrics remain in the engine-owned sink and are passed separately to analysis.
 
 ### Example CLI flow

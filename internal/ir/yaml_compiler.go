@@ -36,6 +36,7 @@ type yamlWorkloadSegment struct {
 
 type yamlFailure struct {
 	Target            string  `yaml:"target"`
+	Instance          int     `yaml:"instance"`
 	AtS               float64 `yaml:"at_s"`
 	LatencyMultiplier float64 `yaml:"latency_multiplier"`
 }
@@ -69,7 +70,7 @@ func CompileYAML(data []byte) (*Graph, WorkloadConfig, []FailureConfig, error) {
 
 	failures := make([]FailureConfig, 0, len(raw.Failures))
 	for _, failure := range raw.Failures {
-		failures = append(failures, FailureConfig{Target: NodeID(failure.Target), AtS: failure.AtS, LatencyMultiplier: failure.LatencyMultiplier})
+		failures = append(failures, FailureConfig{Target: NodeID(failure.Target), Instance: failure.Instance, AtS: failure.AtS, LatencyMultiplier: failure.LatencyMultiplier})
 	}
 	config := WorkloadConfig{Segments: workloads}
 	if err := Validate(graph, config, failures); err != nil {

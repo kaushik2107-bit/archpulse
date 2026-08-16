@@ -82,10 +82,12 @@ func construct(simClass string, id kernel.ResourceID, parameters map[string]any,
 		if instances <= 0 || workers <= 0 || mean <= 0 || stddev < 0 {
 			return nil, fmt.Errorf("compute capacity and service-time parameters are invalid")
 		}
-		reportedCapacity := instances * workers
-		scaledCapacity := max(1, int(math.Round(float64(reportedCapacity)/float64(trafficScale))))
-		pool := &ServerPool{Capacity: scaledCapacity, ReportedCapacity: reportedCapacity, MetricScale: trafficScale, ServiceTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}
-		return &ComputeResource{ResourceID: id, Pool: pool, Downstream: downstream[0]}, nil
+		scaledWorkers := max(1, int(math.Round(float64(workers)/float64(trafficScale))))
+		members := make([]*ComputeInstance, 0, instances)
+		for range instances {
+			members = append(members, &ComputeInstance{LatencyMultiplier: 1, Pool: &ServerPool{Capacity: scaledWorkers, ReportedCapacity: workers, MetricScale: trafficScale, ServiceTime: LognormalSampler{MeanMs: mean, StdDevMs: stddev}}})
+		}
+		return &ComputeResource{ResourceID: id, Instances: members, Downstream: downstream[0], assigned: make(map[kernel.RequestID]int)}, nil
 	case "database":
 		if len(downstream) != 0 {
 			return nil, fmt.Errorf("database cannot have a downstream resource in the MVP")

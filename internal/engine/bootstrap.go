@@ -31,6 +31,7 @@ func BootstrapWithTrafficScale(graph *ir.Graph, workloadConfig ir.WorkloadConfig
 			At:                kernel.SimTime(config.AtS * float64(kernel.Second)),
 			Target:            ids[config.Target],
 			LatencyMultiplier: config.LatencyMultiplier,
+			Instance:          config.Instance,
 		}.Seed(queue)
 	}
 	last := workloadConfig.Segments[len(workloadConfig.Segments)-1]

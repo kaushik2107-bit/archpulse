@@ -29,6 +29,7 @@ export interface ServiceNodeData extends Record<string, unknown> {
   pressure?: 'idle' | 'active' | 'warning' | 'critical'
   liveUtilization?: number
   liveQueueDepth?: number
+  liveInstances?: InstancePressure[]
 }
 
 export type ServiceNode = Node<ServiceNodeData, 'service'>
@@ -45,6 +46,7 @@ export interface WorkloadSegment {
 
 export interface FailureConfig {
   target: string
+  instance?: number
   at_s: number
   latency_multiplier: number
 }
@@ -92,6 +94,12 @@ export interface RunResponse {
       resource_id: number
       utilization_pct: MetricPoint[]
       queue_depth: MetricPoint[]
+      instances?: Array<{
+        instance: number
+        utilization_pct: MetricPoint[]
+        queue_depth: MetricPoint[]
+        degraded: MetricPoint[]
+      }>
     }>
     bottleneck: {
       plateau_start_time_ns: number
@@ -118,14 +126,24 @@ export interface JobProgress {
     queue_depth: number
     capacity: number
     utilization_pct: number
+    instances?: InstancePressure[]
   }>
+}
+
+export interface InstancePressure {
+  instance: number
+  in_flight: number
+  queue_depth: number
+  capacity: number
+  utilization_pct: number
+  degraded: boolean
 }
 
 export interface SimulationJob {
   simulation_id: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
   progress: JobProgress
-  resources: Array<{ resource_id: number; node_id: string; type: string }>
+  resources: Array<{ resource_id: number; node_id: string; name?: string; type: string }>
   result?: RunResponse['result']
   error?: string
 }

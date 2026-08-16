@@ -39,4 +39,8 @@ type DownstreamCallPayload struct {
 	Request  *RequestState
 	Upstream ResourceID
 }
-type ResourceDegradedPayload struct{ LatencyMultiplier float64 }
+type ResourceDegradedPayload struct {
+	LatencyMultiplier float64
+	// Instance is one-based. Zero targets the whole logical resource group.
+	Instance int
+}

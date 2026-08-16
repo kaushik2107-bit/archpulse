@@ -16,8 +16,10 @@ connections:
 workload:
   - {type: constant, rate: 100, start_time_s: 0, end_time_s: 10}
   - {type: ramp, start_rate: 100, end_rate: 200, start_time_s: 10, end_time_s: 20}
+failures:
+  - {target: api, instance: 2, at_s: 12, latency_multiplier: 3}
 `)
-	graph, workload, _, err := CompileYAML(data)
+	graph, workload, failures, err := CompileYAML(data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,6 +37,9 @@ workload:
 	}
 	if _, exists := graph.Nodes[1].Parameters["name"]; exists {
 		t.Fatal("service name leaked into resource parameters")
+	}
+	if len(failures) != 1 || failures[0].Instance != 2 {
+		t.Fatalf("replica failure was not compiled: %+v", failures)
 	}
 }
 

@@ -59,11 +59,21 @@ type JobProgress struct {
 }
 
 type ResourcePressure struct {
-	ResourceID     uint32  `json:"resource_id"`
+	ResourceID     uint32             `json:"resource_id"`
+	InFlight       int                `json:"in_flight"`
+	QueueDepth     int                `json:"queue_depth"`
+	Capacity       int                `json:"capacity"`
+	UtilizationPct float64            `json:"utilization_pct"`
+	Instances      []InstancePressure `json:"instances,omitempty"`
+}
+
+type InstancePressure struct {
+	Instance       int     `json:"instance"`
 	InFlight       int     `json:"in_flight"`
 	QueueDepth     int     `json:"queue_depth"`
 	Capacity       int     `json:"capacity"`
 	UtilizationPct float64 `json:"utilization_pct"`
+	Degraded       bool    `json:"degraded"`
 }
 
 type JobResponse struct {
@@ -186,7 +196,11 @@ func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *met
 			progress.Percent = min(100, 100*float64(snapshot.VirtualTime)/float64(snapshot.Horizon))
 		}
 		for _, resource := range snapshot.Resources {
-			progress.Resources = append(progress.Resources, ResourcePressure{ResourceID: uint32(resource.ResourceID), InFlight: resource.InFlight, QueueDepth: resource.QueueDepth, Capacity: resource.Capacity, UtilizationPct: resource.UtilizationPct})
+			pressure := ResourcePressure{ResourceID: uint32(resource.ResourceID), InFlight: resource.InFlight, QueueDepth: resource.QueueDepth, Capacity: resource.Capacity, UtilizationPct: resource.UtilizationPct}
+			for _, instance := range resource.Instances {
+				pressure.Instances = append(pressure.Instances, InstancePressure{Instance: instance.Instance, InFlight: instance.InFlight, QueueDepth: instance.QueueDepth, Capacity: instance.Capacity, UtilizationPct: instance.UtilizationPct, Degraded: instance.Degraded})
+			}
+			progress.Resources = append(progress.Resources, pressure)
 		}
 		s.mu.Lock()
 		job.response.Progress = progress

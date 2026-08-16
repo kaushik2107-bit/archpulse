@@ -34,6 +34,7 @@ type WorkloadConfig struct {
 
 type FailureConfig struct {
 	Target            NodeID  `json:"target"`
+	Instance          int     `json:"instance,omitempty"`
 	AtS               float64 `json:"at_s"`
 	LatencyMultiplier float64 `json:"latency_multiplier"`
 }

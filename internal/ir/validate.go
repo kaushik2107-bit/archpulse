@@ -55,14 +55,39 @@ func Validate(graph *Graph, workload WorkloadConfig, failures []FailureConfig) e
 		}
 	}
 	for _, failure := range failures {
-		if _, exists := ids[failure.Target]; !exists {
+		node, exists := ids[failure.Target]
+		if !exists {
 			return fmt.Errorf("failure references unknown node: %s", failure.Target)
 		}
-		if failure.AtS < 0 || failure.LatencyMultiplier <= 0 {
+		if failure.AtS < 0 || failure.LatencyMultiplier <= 0 || failure.Instance < 0 {
 			return fmt.Errorf("failure for %s has invalid timing or multiplier", failure.Target)
+		}
+		if failure.Instance > 0 {
+			instances := numericInt(node.Parameters["instances"])
+			if instances == 0 && (node.ResourceType == "aws.ec2" || node.ResourceType == "aws.ecs") {
+				instances = 1
+			}
+			if instances < failure.Instance {
+				return fmt.Errorf("failure for %s references instance %d but the service has %d instances", failure.Target, failure.Instance, instances)
+			}
 		}
 	}
 	return nil
+}
+
+func numericInt(value any) int {
+	switch number := value.(type) {
+	case int:
+		return number
+	case int64:
+		return int(number)
+	case uint64:
+		return int(number)
+	case float64:
+		return int(number)
+	default:
+		return 0
+	}
 }
 
 func hasCycle(graph *Graph) bool {

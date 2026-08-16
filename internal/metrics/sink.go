@@ -11,15 +11,22 @@ type ResourceMetrics struct {
 	Rejected    uint64
 }
 
+type InstanceMetrics struct {
+	Utilization *TimeSeries
+	QueueDepth  *TimeSeries
+	Degraded    *TimeSeries
+}
+
 type Sink struct {
 	perResource map[kernel.ResourceID]*ResourceMetrics
+	perInstance map[kernel.ResourceID]map[int]*InstanceMetrics
 	global      *ResourceMetrics
 	entryPoint  kernel.ResourceID
 	tick        kernel.SimTime
 }
 
 func NewSink(world *kernel.World, entryPoint kernel.ResourceID, tick kernel.SimTime) *Sink {
-	sink := &Sink{perResource: make(map[kernel.ResourceID]*ResourceMetrics, world.Len()), global: newResourceMetrics(), entryPoint: entryPoint, tick: tick}
+	sink := &Sink{perResource: make(map[kernel.ResourceID]*ResourceMetrics, world.Len()), perInstance: make(map[kernel.ResourceID]map[int]*InstanceMetrics), global: newResourceMetrics(), entryPoint: entryPoint, tick: tick}
 	for index := 0; index < world.Len(); index++ {
 		sink.perResource[kernel.ResourceID(index)] = newResourceMetrics()
 	}
@@ -51,6 +58,23 @@ func (s *Sink) Observe(event kernel.Event, world *kernel.World) {
 			snapshot := world.Get(id).SnapshotMetrics()
 			s.perResource[id].Utilization.Record(event.Time, snapshot.UtilizationPct)
 			s.perResource[id].QueueDepth.Record(event.Time, float64(snapshot.QueueDepth))
+			for _, instance := range snapshot.Instances {
+				if s.perInstance[id] == nil {
+					s.perInstance[id] = make(map[int]*InstanceMetrics)
+				}
+				series := s.perInstance[id][instance.Instance]
+				if series == nil {
+					series = &InstanceMetrics{Utilization: &TimeSeries{}, QueueDepth: &TimeSeries{}, Degraded: &TimeSeries{}}
+					s.perInstance[id][instance.Instance] = series
+				}
+				series.Utilization.Record(event.Time, instance.UtilizationPct)
+				series.QueueDepth.Record(event.Time, float64(instance.QueueDepth))
+				degraded := 0.0
+				if instance.Degraded {
+					degraded = 1
+				}
+				series.Degraded.Record(event.Time, degraded)
+			}
 		}
 	}
 }
@@ -62,6 +86,7 @@ func requestWeight(request *kernel.RequestState) uint64 {
 	return uint64(request.Weight)
 }
 
-func (s *Sink) Global() *ResourceMetrics                            { return s.global }
-func (s *Sink) PerResource() map[kernel.ResourceID]*ResourceMetrics { return s.perResource }
-func (s *Sink) EntryPoint() kernel.ResourceID                       { return s.entryPoint }
+func (s *Sink) Global() *ResourceMetrics                                    { return s.global }
+func (s *Sink) PerResource() map[kernel.ResourceID]*ResourceMetrics         { return s.perResource }
+func (s *Sink) PerInstance() map[kernel.ResourceID]map[int]*InstanceMetrics { return s.perInstance }
+func (s *Sink) EntryPoint() kernel.ResourceID                               { return s.entryPoint }
