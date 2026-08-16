@@ -43,11 +43,12 @@ go run ./cmd/archpulse-web --addr :8081
 
 **ArchPulse Studio** provides an interactive interface to design and simulate AWS architectures:
 
-![ArchPulse Studio - Architecture Simulation](docs/images/archpulse-studio.png)
+![ArchPulse Studio - Architecture Simulation](docs/images/image.png)
 
 The visualization shows:
+
 - **Architecture diagram** — Interactive canvas with services and connections
-- **Live metrics** — Real-time throughput, latency, and queue depth tracking  
+- **Live metrics** — Real-time throughput, latency, and queue depth tracking
 - **Bottleneck analysis** — Identifies resource constraints limiting throughput
 - **Configuration panel** — Adjustable parameters for each service
 
