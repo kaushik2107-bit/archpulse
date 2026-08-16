@@ -460,7 +460,8 @@ Load Generator -> Load Balancer -> Compute -> Database
 - YAML-to-engine bootstrap wiring
 - DAG validation with exactly one load-generator node
 - Browser architecture studio for node/edge editing, resource parameters, workload phases, failure injection, validation, simulation, and result visualization
-- Go JSON API for service-catalog discovery, validation, and synchronous simulation runs
+- Go JSON API for service-catalog discovery, validation, YAML import, and asynchronous simulation jobs
+- Live virtual-time progress, resource pressure snapshots, cancellation, bounded concurrency, and web-run safety limits
 
 ### Explicitly excluded from MVP
 

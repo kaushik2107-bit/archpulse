@@ -26,6 +26,9 @@ export interface ServiceNodeData extends Record<string, unknown> {
   category: string
   icon: string
   parameters: Record<string, ParameterValue>
+  pressure?: 'idle' | 'active' | 'warning' | 'critical'
+  liveUtilization?: number
+  liveQueueDepth?: number
 }
 
 export type ServiceNode = Node<ServiceNodeData, 'service'>
@@ -85,4 +88,29 @@ export interface RunResponse {
     }
   }
   resources: Array<{ resource_id: number; node_id: string; type: string }>
+}
+
+export interface JobProgress {
+  virtual_time_ns: number
+  horizon_ns: number
+  percent: number
+  events_processed: number
+  completed_requests: number
+  queued_requests: number
+  resources: Array<{
+    resource_id: number
+    in_flight: number
+    queue_depth: number
+    capacity: number
+    utilization_pct: number
+  }>
+}
+
+export interface SimulationJob {
+  simulation_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  progress: JobProgress
+  resources: Array<{ resource_id: number; node_id: string; type: string }>
+  result?: RunResponse['result']
+  error?: string
 }

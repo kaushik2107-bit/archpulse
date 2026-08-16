@@ -13,12 +13,13 @@ const icons = {
 export default function ServiceNodeCard({ data, selected }: NodeProps<ServiceNode>) {
   const Icon = icons[data.icon as keyof typeof icons] ?? Server
   return (
-    <div className={`service-node category-${data.category} ${selected ? 'selected' : ''}`}>
+    <div className={`service-node category-${data.category} pressure-${data.pressure ?? 'idle'} ${selected ? 'selected' : ''}`}>
       <Handle type="target" position={Position.Left} className="node-handle" />
       <div className="service-node__icon"><Icon size={22} strokeWidth={1.8} /></div>
       <div>
         <strong>{data.label}</strong>
         <span>{data.resourceType}</span>
+        {data.pressure && data.pressure !== 'idle' && <em>{Math.round(data.liveUtilization ?? 0)}% · queue {(data.liveQueueDepth ?? 0).toLocaleString()}</em>}
       </div>
       <Handle type="source" position={Position.Right} className="node-handle" />
     </div>

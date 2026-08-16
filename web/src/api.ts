@@ -1,4 +1,4 @@
-import type { CatalogEntry, ImportedArchitecture, RunResponse, SimulationPayload } from './types'
+import type { CatalogEntry, ImportedArchitecture, SimulationJob, SimulationPayload } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -32,9 +32,17 @@ export async function importYAML(contents: string): Promise<ImportedArchitecture
   return body as ImportedArchitecture
 }
 
-export async function runSimulation(payload: SimulationPayload, seed: number): Promise<RunResponse> {
-  return request<RunResponse>('/api/simulations/run', {
+export async function startSimulation(payload: SimulationPayload, seed: number): Promise<SimulationJob> {
+  return request<SimulationJob>('/api/simulations', {
     method: 'POST',
     body: JSON.stringify({ ...payload, seed }),
   })
+}
+
+export async function getSimulation(simulationID: string): Promise<SimulationJob> {
+  return request<SimulationJob>(`/api/simulations/${encodeURIComponent(simulationID)}`)
+}
+
+export async function cancelSimulation(simulationID: string): Promise<void> {
+  await request(`/api/simulations/${encodeURIComponent(simulationID)}`, { method: 'DELETE' })
 }

@@ -1,6 +1,22 @@
 package kernel
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	ErrSimulationCancelled = errors.New("simulation cancelled")
+	ErrSimulationLimit     = errors.New("simulation safety limit reached")
+)
+
+type ProgressSnapshot struct {
+	VirtualTime     SimTime
+	Horizon         SimTime
+	EventsProcessed uint64
+	QueuedRequests  int
+	Resources       []ResourceMetricsSnapshot
+}
 
 type Engine struct {
 	Queue   *EventQueue
@@ -8,7 +24,13 @@ type Engine struct {
 	RNG     *RNGStreams
 	Metrics MetricsSink
 	Horizon SimTime
-	now     SimTime
+
+	// Optional web-run controls. Zero limits preserve the unbounded CLI behavior.
+	MaxEvents         uint64
+	MaxQueuedRequests int
+	ShouldStop        func() bool
+	OnProgress        func(ProgressSnapshot)
+	now               SimTime
 }
 
 type RunTrace struct {
@@ -23,6 +45,20 @@ func (e *Engine) Run() (RunTrace, error) {
 
 	var processed uint64
 	for e.Queue.Len() > 0 {
+		if processed%4096 == 0 {
+			if e.ShouldStop != nil && e.ShouldStop() {
+				return RunTrace{TotalEventsProcessed: processed, FinalTime: e.now}, ErrSimulationCancelled
+			}
+			if e.MaxEvents > 0 && processed >= e.MaxEvents {
+				return RunTrace{TotalEventsProcessed: processed, FinalTime: e.now}, fmt.Errorf("%w: processed event limit %d", ErrSimulationLimit, e.MaxEvents)
+			}
+			if e.MaxQueuedRequests > 0 {
+				queued := e.queuedRequests()
+				if queued > e.MaxQueuedRequests {
+					return RunTrace{TotalEventsProcessed: processed, FinalTime: e.now}, fmt.Errorf("%w: queued request limit %d exceeded (%d queued)", ErrSimulationLimit, e.MaxQueuedRequests, queued)
+				}
+			}
+		}
 		ev, _ := e.Queue.Pop()
 		if ev.Time > e.Horizon {
 			break
@@ -32,6 +68,7 @@ func (e *Engine) Run() (RunTrace, error) {
 
 		if ev.Type == PolicyTick {
 			e.Metrics.Observe(ev, e.World)
+			e.publishProgress(processed)
 			e.Queue.Push(Event{Time: e.now + e.Metrics.TickInterval(), Type: PolicyTick})
 			continue
 		}
@@ -52,7 +89,31 @@ func (e *Engine) Run() (RunTrace, error) {
 			e.Queue.Push(followUp)
 		}
 	}
-	return RunTrace{TotalEventsProcessed: processed, FinalTime: e.now}, nil
+	trace := RunTrace{TotalEventsProcessed: processed, FinalTime: e.now}
+	e.publishProgress(processed)
+	return trace, nil
+}
+
+func (e *Engine) queuedRequests() int {
+	total := 0
+	for index := 0; index < e.World.Len(); index++ {
+		total += e.World.Get(ResourceID(index)).SnapshotMetrics().QueueDepth
+	}
+	return total
+}
+
+func (e *Engine) publishProgress(processed uint64) {
+	if e.OnProgress == nil {
+		return
+	}
+	resources := make([]ResourceMetricsSnapshot, 0, e.World.Len())
+	queued := 0
+	for index := 0; index < e.World.Len(); index++ {
+		snapshot := e.World.Get(ResourceID(index)).SnapshotMetrics()
+		queued += snapshot.QueueDepth
+		resources = append(resources, snapshot)
+	}
+	e.OnProgress(ProgressSnapshot{VirtualTime: e.now, Horizon: e.Horizon, EventsProcessed: processed, QueuedRequests: queued, Resources: resources})
 }
 
 func (e *Engine) validate() error {

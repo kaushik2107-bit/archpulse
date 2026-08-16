@@ -1640,7 +1640,10 @@ The API surface is intentionally small:
 - `GET /api/catalog` returns service display metadata, safe editable defaults, and configuration-field schemas.
 - `POST /api/architectures/import-yaml` compiles an uploaded YAML document and returns its canonical graph, workload segments, and failures for editor hydration.
 - `POST /api/validate` validates graph structure, workload continuity, resource profiles, parameters, and MVP topology.
-- `POST /api/simulations/run` performs a deterministic synchronous run and returns aggregate metrics, bottleneck verdicts, and the numeric-resource-to-node mapping.
+- `POST /api/simulations` creates a bounded asynchronous job and returns its ID plus the numeric-resource-to-node mapping.
+- `GET /api/simulations/{id}` returns job state, virtual-time progress, event/request counts, live resource pressure snapshots, and the final result when complete.
+- `DELETE /api/simulations/{id}` requests cancellation. The kernel checks cancellation between bounded event batches.
+- `POST /api/simulations/run` remains as a compatibility endpoint but uses the same concurrency, wall-clock, event-count, and queue-depth safeguards.
 
 The editor uses the profile catalog rather than hard-coding backend behavior. Simulation-class names remain private; the UI only sees AWS type names, display metadata, safe defaults, and fields it may edit.
 
@@ -1652,7 +1655,9 @@ The visualizer flow is:
 2. User drags an "EC2" icon onto canvas, draws a connection to an "RDS" icon → frontend serializes this as IR (`type: aws.ec2`, an edge to `type: aws.rds.postgres`) — same YAML-equivalent shape as §9.2, just constructed visually instead of hand-written.
 3. Submitted to the same `CompileYAML`-equivalent path (a JSON variant of it) → same `Validate` → same `BuildWorld` → same kernel, completely unaware anything changed.
 
-No kernel or resource-class changes were needed to add the visualizer. Vite proxies `/api` to Go during development; production builds into `web/dist`, which the Go web command serves with SPA fallback routing. Project persistence, authentication, collaboration, import/export, and asynchronous run management remain later concerns.
+No resource-class changes were needed to add the visualizer. Vite proxies `/api` to Go during development; production builds into `web/dist`, which the Go web command serves with SPA fallback routing. Project persistence, authentication, collaboration, export, durable job history, and distributed workers remain later concerns.
+
+Web jobs are limited to two concurrent runs, eight million events, 250,000 queued requests, and two wall-clock minutes. These limits prevent high-rate scenarios from exhausting process memory. At each virtual-second policy tick, the kernel publishes a compact snapshot rather than streaming individual request events; the UI uses it to animate active edges and color nodes green, yellow, or red based on utilization and queue pressure. This preserves simulation performance while still making system behavior visible.
 
 ---
 

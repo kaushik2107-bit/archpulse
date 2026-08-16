@@ -1,6 +1,9 @@
 package kernel
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 type testMetrics struct {
 	ticks int
@@ -78,5 +81,50 @@ func TestEngineHandlesPolicyTickAndRequestHopBookkeeping(t *testing.T) {
 	}
 	if second.request.Upstream != firstID || second.request.CurrentHop != secondID {
 		t.Fatalf("hop bookkeeping = upstream %d current %d, want %d and %d", second.request.Upstream, second.request.CurrentHop, firstID, secondID)
+	}
+}
+
+type loopingResource struct{ id ResourceID }
+
+func (r *loopingResource) ID() ResourceID { return r.id }
+func (r *loopingResource) HandleEvent(event Event, _ *SimContext) []Event {
+	return []Event{{Time: event.Time, Type: RequestArrived, Target: r.id}}
+}
+func (r *loopingResource) SnapshotMetrics() ResourceMetricsSnapshot {
+	return ResourceMetricsSnapshot{ResourceID: r.id}
+}
+func (r *loopingResource) ApplyFailure(ResourceDegradedPayload) {}
+func (r *loopingResource) ClearFailure()                        {}
+
+func TestEngineStopsAtSafetyLimit(t *testing.T) {
+	world := &World{}
+	id := world.Reserve()
+	if err := world.Set(id, &loopingResource{id: id}); err != nil {
+		t.Fatal(err)
+	}
+	queue := NewEventQueue()
+	queue.Push(Event{Type: RequestArrived, Target: id})
+	engine := &Engine{Queue: queue, World: world, RNG: NewRNGStreams(1), Metrics: &testMetrics{}, Horizon: Second, MaxEvents: 4096}
+	trace, err := engine.Run()
+	if !errors.Is(err, ErrSimulationLimit) {
+		t.Fatalf("error = %v, want safety-limit error", err)
+	}
+	if trace.TotalEventsProcessed != 4096 {
+		t.Fatalf("processed = %d, want 4096", trace.TotalEventsProcessed)
+	}
+}
+
+func TestEngineHonorsCancellation(t *testing.T) {
+	world := &World{}
+	id := world.Reserve()
+	if err := world.Set(id, &loopingResource{id: id}); err != nil {
+		t.Fatal(err)
+	}
+	queue := NewEventQueue()
+	queue.Push(Event{Type: RequestArrived, Target: id})
+	engine := &Engine{Queue: queue, World: world, RNG: NewRNGStreams(1), Metrics: &testMetrics{}, Horizon: Second, ShouldStop: func() bool { return true }}
+	_, err := engine.Run()
+	if !errors.Is(err, ErrSimulationCancelled) {
+		t.Fatalf("error = %v, want cancellation", err)
 	}
 }

@@ -32,6 +32,10 @@ The browser editor opens with a blank canvas. Build an architecture by adding AW
 
 The studio also supports editing resource capacity and latency, defining contiguous workload phases, scheduling latency failures, validating the graph, running the simulator, and inspecting throughput, latency, and bottleneck results.
 
+Web simulations run as background jobs. During a run, the canvas shows virtual-time progress, completed and queued request counts, animated request paths, and live node pressure: green for active capacity, yellow above 70% utilization, and red for saturation or queueing. Runs can be cancelled from the header.
+
+To protect the local process from accidental overload, web runs are limited to two concurrent simulations, eight million processed events, 250,000 queued requests, and two minutes of wall-clock execution. Crossing a limit fails that job with an explicit message while keeping the application available. These safeguards apply to the web API; CLI runs remain unbounded unless stopped by their configured horizon.
+
 ### Development
 
 Run the Go API and Vite development server in separate terminals:

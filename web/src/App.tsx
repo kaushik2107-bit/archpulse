@@ -26,7 +26,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { getCatalog, importYAML, runSimulation, validateArchitecture } from './api'
+import { cancelSimulation, getCatalog, getSimulation, importYAML, startSimulation, validateArchitecture } from './api'
 import MetricChart from './MetricChart'
 import ServiceNodeCard from './ServiceNode'
 import type {
@@ -35,6 +35,7 @@ import type {
   FailureConfig,
   RunResponse,
   ServiceNode,
+  SimulationJob,
   SimulationPayload,
   WorkloadSegment,
 } from './types'
@@ -56,6 +57,8 @@ export default function App() {
   const [seed, setSeed] = useState(42)
   const [status, setStatus] = useState<Status>({ kind: 'info', message: 'Loading service catalog…' })
   const [running, setRunning] = useState(false)
+  const [activeJob, setActiveJob] = useState<string | null>(null)
+  const [jobProgress, setJobProgress] = useState<SimulationJob['progress'] | null>(null)
   const [result, setResult] = useState<RunResponse | null>(null)
   const [bottomTab, setBottomTab] = useState<'workload' | 'failures' | 'results'>('workload')
   const nextID = useRef(1)
@@ -70,9 +73,48 @@ export default function App() {
       .catch((error: Error) => setStatus({ kind: 'error', message: error.message }))
   }, [])
 
+  useEffect(() => {
+    if (!activeJob) return
+    let disposed = false
+    let timer: number | undefined
+    const poll = async () => {
+      try {
+        const job = await getSimulation(activeJob)
+        if (disposed) return
+        setJobProgress(job.progress)
+        applyPressure(job)
+        if (job.status === 'completed' && job.result) {
+          setResult({ result: job.result, resources: job.resources })
+          setBottomTab('results')
+          setRunning(false)
+          setActiveJob(null)
+          setStatus({ kind: 'success', message: `Simulation complete — ${job.result.latency.count.toLocaleString()} requests served` })
+          return
+        }
+        if (job.status === 'failed' || job.status === 'cancelled') {
+          setRunning(false)
+          setActiveJob(null)
+          setStatus({ kind: job.status === 'failed' ? 'error' : 'info', message: job.error ?? `Simulation ${job.status}` })
+          return
+        }
+        const virtualSeconds = job.progress.virtual_time_ns / 1e9
+        const horizonSeconds = job.progress.horizon_ns / 1e9
+        setStatus({ kind: 'info', message: `${job.status === 'queued' ? 'Queued' : 'Running'} · ${job.progress.percent.toFixed(0)}% · ${virtualSeconds.toFixed(0)}s / ${horizonSeconds.toFixed(0)}s virtual time` })
+        timer = window.setTimeout(poll, 500)
+      } catch (error) {
+        if (disposed) return
+        setRunning(false)
+        setActiveJob(null)
+        setStatus({ kind: 'error', message: (error as Error).message })
+      }
+    }
+    void poll()
+    return () => { disposed = true; if (timer !== undefined) window.clearTimeout(timer) }
+  }, [activeJob])
+
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === connection.target) return
-    setEdges((current) => addEdge({ ...connection, animated: true }, current))
+    setEdges((current) => addEdge({ ...connection, animated: false }, current))
   }, [setEdges])
 
   const selectedNode = nodes.find((node) => node.selected)
@@ -128,7 +170,7 @@ export default function App() {
       if (catalog.length === 0) setCatalog(services)
       const imported = await importYAML(await file.text())
       setNodes(layoutImportedNodes(imported.graph.nodes, imported.graph.edges, services))
-      setEdges(imported.graph.edges.map((edge, index) => ({ id: `yaml-${index}-${edge.from}-${edge.to}`, source: edge.from, target: edge.to, animated: true })))
+      setEdges(imported.graph.edges.map((edge, index) => ({ id: `yaml-${index}-${edge.from}-${edge.to}`, source: edge.from, target: edge.to, animated: false })))
       setWorkload(imported.workload.segments)
       setFailures(imported.failures ?? [])
       setResult(null)
@@ -150,17 +192,45 @@ export default function App() {
 
   async function simulate() {
     setRunning(true)
+    setJobProgress(null)
+    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, pressure: 'active', liveUtilization: 0, liveQueueDepth: 0 } })))
     setStatus({ kind: 'info', message: 'Simulation running…' })
     try {
-      const response = await runSimulation(payload, seed)
-      setResult(response)
-      setBottomTab('results')
-      setStatus({ kind: 'success', message: `Simulation complete — ${response.result.latency.count.toLocaleString()} requests served` })
+      const job = await startSimulation(payload, seed)
+      setActiveJob(job.simulation_id)
     } catch (error) {
       setStatus({ kind: 'error', message: (error as Error).message })
-    } finally {
       setRunning(false)
     }
+  }
+
+  async function cancelRun() {
+    if (!activeJob) return
+    setStatus({ kind: 'info', message: 'Cancelling simulation…' })
+    try {
+      await cancelSimulation(activeJob)
+    } catch (error) {
+      setStatus({ kind: 'error', message: (error as Error).message })
+    }
+  }
+
+  function applyPressure(job: SimulationJob) {
+    const referenceByResource = new Map(job.resources.map((resource) => [resource.resource_id, resource.node_id]))
+    const pressureByNode = new Map(job.progress.resources.map((resource) => {
+      const nodeID = referenceByResource.get(resource.resource_id) ?? ''
+      const pressure = resource.queue_depth > 0 || resource.utilization_pct >= 90
+        ? 'critical'
+        : resource.utilization_pct >= 70
+          ? 'warning'
+          : resource.in_flight > 0
+            ? 'active'
+            : 'idle'
+      return [nodeID, { pressure, utilization: resource.utilization_pct, queue: resource.queue_depth }] as const
+    }))
+    setNodes((current) => current.map((node) => {
+      const live = pressureByNode.get(node.id)
+      return live ? { ...node, data: { ...node.data, pressure: live.pressure, liveUtilization: live.utilization, liveQueueDepth: live.queue } } : node
+    }))
   }
 
   const groups = useMemo(() => catalog.reduce<Record<string, CatalogEntry[]>>((all, service) => {
@@ -178,7 +248,7 @@ export default function App() {
         <div className="topbar-actions">
           <label className="seed-control">Seed <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value))} /></label>
           <button className="button ghost" onClick={validate}><Check size={16} /> Validate</button>
-          <button className="button primary" onClick={simulate} disabled={running}><Play size={16} fill="currentColor" />{running ? 'Running…' : 'Run simulation'}</button>
+          <button className={`button primary ${running ? 'cancel-run' : ''}`} onClick={running ? cancelRun : simulate}>{running ? <X size={16} /> : <Play size={16} fill="currentColor" />}{running ? 'Cancel run' : 'Run simulation'}</button>
         </div>
       </header>
 
@@ -188,31 +258,33 @@ export default function App() {
           <p className="panel-help">Start from a YAML file or add services and connect them manually.</p>
           <div className="import-box">
             <input ref={fileInput} type="file" accept=".yaml,.yml,application/yaml,text/yaml" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void loadYAML(file); event.target.value = '' }} />
-            <button className="button import" onClick={() => fileInput.current?.click()}><Upload size={15} /> Load YAML file</button>
+            <button className="button import" onClick={() => fileInput.current?.click()} disabled={running}><Upload size={15} /> Load YAML file</button>
           </div>
           <div className="palette-groups">
             {Object.entries(groups).map(([category, services]) => (
               <section key={category}><h3>{category}</h3>{services.map((service) => (
-                <button className="palette-item" key={service.type} onClick={() => addService(service)}>
+                <button className="palette-item" key={service.type} onClick={() => addService(service)} disabled={running}>
                   <span className={`palette-icon category-${category}`}><Zap size={17} /></span>
                   <span><strong>{service.label}</strong><small>{service.type}</small></span><Plus size={15} />
                 </button>
               ))}</section>
             ))}
           </div>
-          <button className="button reset" onClick={clearArchitecture}><Trash2 size={15} /> Clear canvas</button>
+          <button className="button reset" onClick={clearArchitecture} disabled={running}><Trash2 size={15} /> Clear canvas</button>
         </aside>
 
-        <section className="canvas-wrap">
+        <section className={`canvas-wrap ${running ? 'simulation-active' : ''}`}>
           <div className="canvas-heading"><div><span className="eyebrow">Architecture</span><strong>{nodes.length} nodes · {edges.length} connections</strong></div><span className="canvas-tip">Select a node to configure it</span></div>
           <ReactFlow
             nodes={nodes}
-            edges={edges}
+            edges={edges.map((edge) => ({ ...edge, animated: running }))}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
             fitView
+            nodesDraggable={!running}
+            nodesConnectable={!running}
             minZoom={0.35}
             maxZoom={1.6}
             defaultEdgeOptions={{ style: { stroke: '#6f8095', strokeWidth: 2 } }}
@@ -222,6 +294,7 @@ export default function App() {
             <MiniMap pannable zoomable nodeColor={(node) => node.data.category === 'database' ? '#2d79c7' : node.data.category === 'compute' ? '#9b62d1' : '#e39018'} />
           </ReactFlow>
           {nodes.length === 0 && <div className="canvas-empty"><div className="canvas-empty__icon"><Workflow size={28} /></div><strong>Build your first architecture</strong><p>Add services from the palette and connect them, or load an existing Infra-Sim YAML file.</p><button className="button primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Choose YAML file</button></div>}
+          {running && jobProgress && <div className="run-progress"><div className="run-progress__top"><span>Simulating virtual traffic</span><strong>{jobProgress.percent.toFixed(0)}%</strong></div><div className="progress-track"><span style={{ width: `${Math.max(1, jobProgress.percent)}%` }} /></div><div className="run-progress__meta"><span>{(jobProgress.completed_requests ?? 0).toLocaleString()} served</span><span>{jobProgress.queued_requests.toLocaleString()} queued</span><span>{jobProgress.events_processed.toLocaleString()} events</span></div></div>}
         </section>
 
         <aside className="inspector panel">

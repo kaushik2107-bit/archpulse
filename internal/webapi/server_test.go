@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"infra-sim/internal/ir"
 )
@@ -87,4 +88,105 @@ workload:
 	if len(imported.Graph.Nodes) != 4 || len(imported.Graph.Edges) != 3 || len(imported.Workload.Segments) != 1 {
 		t.Fatalf("unexpected import: nodes=%d edges=%d segments=%d", len(imported.Graph.Nodes), len(imported.Graph.Edges), len(imported.Workload.Segments))
 	}
+}
+
+func TestAsynchronousSimulationLifecycle(t *testing.T) {
+	server := httptest.NewServer(New().Handler())
+	defer server.Close()
+	request := RunRequest{
+		ArchitectureRequest: ArchitectureRequest{
+			Graph: ir.Graph{
+				Nodes: []ir.Node{{ID: "loadgen", ResourceType: "load_generator", Parameters: map[string]any{}}, {ID: "alb", ResourceType: "aws.alb", Parameters: map[string]any{}}, {ID: "api", ResourceType: "aws.ec2", Parameters: map[string]any{}}, {ID: "database", ResourceType: "aws.rds.postgres", Parameters: map[string]any{}}},
+				Edges: []ir.Edge{{From: "loadgen", To: "alb"}, {From: "alb", To: "api"}, {From: "api", To: "database"}},
+			},
+			Workload: ir.WorkloadConfig{Segments: []ir.WorkloadSegment{{Type: "constant", Rate: 50, StartTimeS: 0, EndTimeS: 2}}},
+		},
+		Seed: 42,
+	}
+	body, _ := json.Marshal(request)
+	response, err := http.Post(server.URL+"/api/simulations", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusAccepted {
+		t.Fatalf("start status = %d", response.StatusCode)
+	}
+	var job JobResponse
+	if err := json.NewDecoder(response.Body).Decode(&job); err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err = http.Get(server.URL + "/api/simulations/" + job.SimulationID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.NewDecoder(response.Body).Decode(&job); err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if job.Status == "completed" {
+			if job.Result == nil || job.Progress.Percent != 100 || job.Progress.CompletedRequests == 0 {
+				t.Fatalf("incomplete completed job: %+v", job)
+			}
+			return
+		}
+		if job.Status == "failed" || job.Status == "cancelled" {
+			t.Fatalf("job ended as %s: %s", job.Status, job.Error)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("job did not complete; last status %s", job.Status)
+}
+
+func TestSafetyLimitFailsJobWithoutCrashingServer(t *testing.T) {
+	api := New()
+	api.maxEvents = 4096
+	server := httptest.NewServer(api.Handler())
+	defer server.Close()
+	request := RunRequest{
+		ArchitectureRequest: ArchitectureRequest{
+			Graph: ir.Graph{
+				Nodes: []ir.Node{{ID: "loadgen", ResourceType: "load_generator", Parameters: map[string]any{}}, {ID: "alb", ResourceType: "aws.alb", Parameters: map[string]any{}}, {ID: "api", ResourceType: "aws.ec2", Parameters: map[string]any{}}, {ID: "database", ResourceType: "aws.rds.postgres", Parameters: map[string]any{}}},
+				Edges: []ir.Edge{{From: "loadgen", To: "alb"}, {From: "alb", To: "api"}, {From: "api", To: "database"}},
+			},
+			Workload: ir.WorkloadConfig{Segments: []ir.WorkloadSegment{{Type: "constant", Rate: 100_000, StartTimeS: 0, EndTimeS: 300}}},
+		},
+		Seed: 42,
+	}
+	body, _ := json.Marshal(request)
+	response, err := http.Post(server.URL+"/api/simulations", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var job JobResponse
+	if err := json.NewDecoder(response.Body).Decode(&job); err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		response, err = http.Get(server.URL + "/api/simulations/" + job.SimulationID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.NewDecoder(response.Body).Decode(&job); err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if job.Status == "failed" {
+			if job.Error == "" {
+				t.Fatal("failed job did not explain the safety limit")
+			}
+			health, err := http.Get(server.URL + "/api/health")
+			if err != nil || health.StatusCode != http.StatusOK {
+				t.Fatalf("server unhealthy after limited job: response=%v error=%v", health, err)
+			}
+			health.Body.Close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("limited job did not fail; last status %s", job.Status)
 }
