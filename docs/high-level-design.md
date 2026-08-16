@@ -459,6 +459,8 @@ Load Generator -> Load Balancer -> Compute -> Database
 - Fixed-time DB latency injection failure
 - YAML-to-engine bootstrap wiring
 - DAG validation with exactly one load-generator node
+- Browser architecture studio for node/edge editing, resource parameters, workload phases, failure injection, validation, simulation, and result visualization
+- Go JSON API for service-catalog discovery, validation, and synchronous simulation runs
 
 ### Explicitly excluded from MVP
 
@@ -468,7 +470,7 @@ Load Generator -> Load Balancer -> Compute -> Database
 - Read replicas
 - Cost modeling
 - Terraform/CFN import
-- UI beyond CLI output
+- Persistent projects, authentication, collaboration, and hosted multi-user UI
 - Per-instance compute queues and hot-instance modeling
 
 ## 19. Development Roadmap
@@ -495,7 +497,7 @@ Goal: convert infrastructure definitions into the IR graph.
 
 ### Phase 6: Visualization / Web UI
 
-Goal: provide a browser-based architecture editor and dashboard.
+Status: the initial browser architecture editor and simulation dashboard are implemented as a React/TypeScript application backed by the Go API. Future Phase 6 work covers persistence, richer charts, import/export, comparison views, collaboration, and hosted operation.
 
 The service-profile catalog is the backend source for the visualizer palette. It exposes stable AWS type, icon, label, and category metadata; the visualizer emits the same IR shape as YAML and uses the same validation, world-building, and simulation path. Requiring no kernel or resource-class changes is a Phase 6 acceptance criterion.
 

@@ -2,3 +2,7 @@
 .gomodcache/
 infra-sim.exe
 result.json
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+.tmp/

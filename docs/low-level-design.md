@@ -1631,17 +1631,28 @@ This is explicitly the _simplest correct-enough_ version — flagged in HLD §7 
 
 ---
 
-## 14. Visualizer Compatibility (why §9.6 exists)
+## 14. Visualizer and Web API
 
-Called out as its own section because it was the specific gap raised mid-review: without §9.6, "add a visual canvas later" would require either (a) hard-coding AWS names into the kernel's registry, which breaks the AWS-agnostic-kernel rule from HLD §1, or (b) the visualizer team reimplementing AWS-name-to-icon mapping independently from whatever the backend uses, which drifts out of sync over time.
+The initial visual canvas is implemented in `web/` using React, TypeScript, Vite, and React Flow. The Go server in `cmd/infra-sim-web` serves the production bundle and routes `/api` requests through `internal/webapi`.
 
-With the profile layer in place, the eventual visualizer flow is:
+The API surface is intentionally small:
+
+- `GET /api/catalog` returns service display metadata, safe editable defaults, and configuration-field schemas.
+- `POST /api/architectures/import-yaml` compiles an uploaded YAML document and returns its canonical graph, workload segments, and failures for editor hydration.
+- `POST /api/validate` validates graph structure, workload continuity, resource profiles, parameters, and MVP topology.
+- `POST /api/simulations/run` performs a deterministic synchronous run and returns aggregate metrics, bottleneck verdicts, and the numeric-resource-to-node mapping.
+
+The editor uses the profile catalog rather than hard-coding backend behavior. Simulation-class names remain private; the UI only sees AWS type names, display metadata, safe defaults, and fields it may edit.
+
+The editor starts with a blank canvas. Users either construct the graph manually from the catalog or select a `.yaml`/`.yml` file; YAML parsing remains server-side so the CLI and browser share one compiler and validation contract. Imported DAGs are laid out by dependency depth in the browser.
+
+The visualizer flow is:
 
 1. Frontend calls a thin API wrapping `profiles.ListForVisualizer()` → renders palette of draggable AWS service icons, grouped by `Category`.
 2. User drags an "EC2" icon onto canvas, draws a connection to an "RDS" icon → frontend serializes this as IR (`type: aws.ec2`, an edge to `type: aws.rds.postgres`) — same YAML-equivalent shape as §9.2, just constructed visually instead of hand-written.
 3. Submitted to the same `CompileYAML`-equivalent path (a JSON variant of it) → same `Validate` → same `BuildWorld` → same kernel, completely unaware anything changed.
 
-No kernel or resource-class changes are needed for the visualizer to exist — this was the actual test of whether §9.6 was designed correctly, and it's worth treating as a concrete acceptance criterion for Phase 6 rather than just an aspiration.
+No kernel or resource-class changes were needed to add the visualizer. Vite proxies `/api` to Go during development; production builds into `web/dist`, which the Go web command serves with SPA fallback routing. Project persistence, authentication, collaboration, import/export, and asynchronous run management remain later concerns.
 
 ---
 

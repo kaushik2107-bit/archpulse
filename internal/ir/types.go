@@ -3,34 +3,36 @@ package ir
 type NodeID string
 
 type Node struct {
-	ID           NodeID
-	ResourceType string
-	Parameters   map[string]any
+	ID           NodeID         `json:"id"`
+	ResourceType string         `json:"resource_type"`
+	Parameters   map[string]any `json:"parameters"`
 }
 
 type Edge struct {
-	From NodeID
-	To   NodeID
+	From NodeID `json:"from"`
+	To   NodeID `json:"to"`
 }
 
 type Graph struct {
-	Nodes []Node
-	Edges []Edge
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
 }
 
 type WorkloadSegment struct {
-	Type       string
-	Rate       float64
-	StartRate  float64
-	EndRate    float64
-	StartTimeS float64
-	EndTimeS   float64
+	Type       string  `json:"type"`
+	Rate       float64 `json:"rate,omitempty"`
+	StartRate  float64 `json:"start_rate,omitempty"`
+	EndRate    float64 `json:"end_rate,omitempty"`
+	StartTimeS float64 `json:"start_time_s"`
+	EndTimeS   float64 `json:"end_time_s"`
 }
 
-type WorkloadConfig struct{ Segments []WorkloadSegment }
+type WorkloadConfig struct {
+	Segments []WorkloadSegment `json:"segments"`
+}
 
 type FailureConfig struct {
-	Target            NodeID
-	AtS               float64
-	LatencyMultiplier float64
+	Target            NodeID  `json:"target"`
+	AtS               float64 `json:"at_s"`
+	LatencyMultiplier float64 `json:"latency_multiplier"`
 }
