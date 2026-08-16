@@ -1,4 +1,4 @@
-# Infra-Sim: High-Level Design
+# ArchPulse: High-Level Design
 
 The low-level design is authoritative when implementation details differ from this document. This HLD should be updated whenever an LLD decision changes an architectural contract or MVP behavior.
 
@@ -420,10 +420,10 @@ For the Go MVP, assembly is centralized in `engine.Bootstrap(graph, workloadConf
 ### Example CLI flow
 
 ```bash
-infra-sim validate architecture.yaml
-infra-sim run architecture.yaml --traffic 50000 --duration 30m --seed 42 --out results/run-001.json
-infra-sim report results/run-001.json --bottlenecks --cost
-infra-sim compare architecture-a.yaml architecture-b.yaml --traffic 20000 --duration 10m
+archpulse validate architecture.yaml
+archpulse run architecture.yaml --traffic 50000 --duration 30m --seed 42 --out results/run-001.json
+archpulse report results/run-001.json --bottlenecks --cost
+archpulse compare architecture-a.yaml architecture-b.yaml --traffic 20000 --duration 10m
 ```
 
 ## 17. Technology Choices
@@ -558,6 +558,6 @@ The final report should explain the cause and the confidence level rather than p
 
 ## Summary
 
-Infra-Sim should be designed as a deterministic DES engine with a generic infrastructure IR, AWS-specific resource plugins, strong provenance and confidence tracking, and a disciplined MVP that proves the architecture before adding retries, autoscaling, or importers.
+ArchPulse should be designed as a deterministic DES engine with a generic infrastructure IR, AWS-specific resource plugins, strong provenance and confidence tracking, and a disciplined MVP that proves the architecture before adding retries, autoscaling, or importers.
 
 The product is valuable not because it can emulate AWS perfectly, but because it makes bottlenecks, failure cascades, and operating tradeoffs visible in a reproducible and explainable way.

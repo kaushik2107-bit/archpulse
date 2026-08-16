@@ -1,6 +1,6 @@
 package failure
 
-import "infra-sim/internal/kernel"
+import "archpulse/internal/kernel"
 
 type ScheduledFailure struct {
 	At                kernel.SimTime

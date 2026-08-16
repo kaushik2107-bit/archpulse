@@ -5,10 +5,10 @@ import (
 	"math"
 	"sort"
 
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/profiles"
-	"infra-sim/internal/workload"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/profiles"
+	"archpulse/internal/workload"
 )
 
 type ResourceDeps struct{ Downstream []kernel.ResourceID }

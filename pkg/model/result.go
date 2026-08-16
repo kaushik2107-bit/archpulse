@@ -1,10 +1,10 @@
 package model
 
 import (
-	"infra-sim/internal/analysis"
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
+	"archpulse/internal/analysis"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
 )
 
 type LatencySummary struct {

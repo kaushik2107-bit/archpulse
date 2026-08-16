@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"infra-sim/internal/webapi"
+	"archpulse/internal/webapi"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 		frontend.ServeHTTP(writer, request)
 	})
 	server := &http.Server{Addr: *address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 5 * time.Minute, IdleTimeout: 60 * time.Second}
-	log.Printf("Infra-Sim web server listening on http://localhost%s", *address)
+	log.Printf("ArchPulse web server listening on http://localhost%s", *address)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

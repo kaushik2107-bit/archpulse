@@ -3,7 +3,7 @@ package resources
 import (
 	"testing"
 
-	"infra-sim/internal/ir"
+	"archpulse/internal/ir"
 )
 
 func TestBuildWorldScaledReducesStoredCapacityAndPreservesReportedCapacity(t *testing.T) {

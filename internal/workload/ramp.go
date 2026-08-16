@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 type Ramp struct {

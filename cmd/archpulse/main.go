@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"time"
 
-	"infra-sim/internal/analysis"
-	enginerunner "infra-sim/internal/engine"
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
-	"infra-sim/internal/report"
-	"infra-sim/pkg/model"
+	"archpulse/internal/analysis"
+	enginerunner "archpulse/internal/engine"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
+	"archpulse/internal/report"
+	"archpulse/pkg/model"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func run(args []string, stdout, _ io.Writer) error {
 	switch args[0] {
 	case "validate":
 		if len(args) != 2 {
-			return fmt.Errorf("usage: infra-sim validate <architecture.yaml>")
+			return fmt.Errorf("usage: archpulse validate <architecture.yaml>")
 		}
 		_, _, _, err := compileFile(args[1])
 		if err != nil {
@@ -46,7 +46,7 @@ func run(args []string, stdout, _ io.Writer) error {
 		return runSimulation(args[1:], stdout)
 	case "report":
 		if len(args) != 2 {
-			return fmt.Errorf("usage: infra-sim report <result.json>")
+			return fmt.Errorf("usage: archpulse report <result.json>")
 		}
 		file, err := os.Open(args[1])
 		if err != nil {
@@ -152,7 +152,7 @@ func runSimulation(args []string, stdout io.Writer) error {
 
 func architectureAndFlags(args []string) (string, []string, error) {
 	if len(args) == 0 {
-		return "", nil, fmt.Errorf("usage: infra-sim run <architecture.yaml> [flags]")
+		return "", nil, fmt.Errorf("usage: archpulse run <architecture.yaml> [flags]")
 	}
 	if args[0][0] != '-' {
 		return args[0], args[1:], nil
@@ -178,5 +178,5 @@ func compileFile(path string) (*ir.Graph, ir.WorkloadConfig, []ir.FailureConfig,
 }
 
 func usageError() error {
-	return fmt.Errorf("usage: infra-sim <validate|run|report> [arguments]")
+	return fmt.Errorf("usage: archpulse <validate|run|report> [arguments]")
 }

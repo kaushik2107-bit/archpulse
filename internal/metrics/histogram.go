@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 // Histogram stores logarithmic microsecond buckets, keeping memory bounded.

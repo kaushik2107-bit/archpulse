@@ -3,11 +3,11 @@ package engine
 import (
 	"fmt"
 
-	"infra-sim/internal/failure"
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
-	"infra-sim/internal/resources"
+	"archpulse/internal/failure"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
+	"archpulse/internal/resources"
 )
 
 func Bootstrap(graph *ir.Graph, workloadConfig ir.WorkloadConfig, failureConfig []ir.FailureConfig, seed int64) (*kernel.Engine, error) {

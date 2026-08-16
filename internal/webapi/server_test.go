@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	enginerunner "infra-sim/internal/engine"
-	"infra-sim/internal/ir"
+	enginerunner "archpulse/internal/engine"
+	"archpulse/internal/ir"
 )
 
 func TestCatalogAndSimulationEndpoints(t *testing.T) {

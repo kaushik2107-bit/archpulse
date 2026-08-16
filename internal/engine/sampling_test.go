@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"infra-sim/internal/ir"
+	"archpulse/internal/ir"
 )
 
 func TestEstimateArrivalsHonorsRampAndOverrideHorizon(t *testing.T) {

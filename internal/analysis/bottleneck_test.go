@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
 )
 
 func TestAnalyzeRanksEarlierDownstreamConstraintAboveUpstreamSymptom(t *testing.T) {

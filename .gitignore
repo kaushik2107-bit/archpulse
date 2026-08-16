@@ -1,6 +1,7 @@
 .gocache/
 .gomodcache/
-infra-sim.exe
+archpulse.exe
+archpulse-web.exe
 result.json
 web/node_modules/
 web/dist/

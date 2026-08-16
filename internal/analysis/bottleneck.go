@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
 )
 
 type BottleneckReport struct {

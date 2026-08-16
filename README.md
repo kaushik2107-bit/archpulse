@@ -1,6 +1,6 @@
-# Infra-Sim
+# ArchPulse
 
-Infra-Sim is a deterministic discrete-event simulator for exploring throughput, latency, queueing, and bottlenecks in AWS-style architectures.
+ArchPulse is a deterministic discrete-event simulator for exploring throughput, latency, queueing, and bottlenecks in AWS-style architectures.
 
 The MVP supports a YAML-defined `Load Generator -> ALB -> EC2/ECS -> RDS PostgreSQL` DAG, constant and ramp workload segments, seeded service-time distributions, fixed-time database latency degradation, streaming metrics, and whole-run topology-aware bottleneck reporting.
 
@@ -30,13 +30,13 @@ the Go application serves static files from `web/dist`.
 ### Start the web application
 
 ```bash
-go run ./cmd/infra-sim-web --addr :8080
+go run ./cmd/archpulse-web --addr :8080
 ```
 
 Open `http://localhost:8080`. To use another port, replace `:8080`, for example:
 
 ```bash
-go run ./cmd/infra-sim-web --addr :8081
+go run ./cmd/archpulse-web --addr :8081
 ```
 
 ### Build standalone executables
@@ -45,18 +45,18 @@ On macOS or Linux:
 
 ```bash
 mkdir -p bin
-go build -o bin/infra-sim ./cmd/infra-sim
-go build -o bin/infra-sim-web ./cmd/infra-sim-web
-./bin/infra-sim-web --web-dir web/dist --addr :8080
+go build -o bin/archpulse ./cmd/archpulse
+go build -o bin/archpulse-web ./cmd/archpulse-web
+./bin/archpulse-web --web-dir web/dist --addr :8080
 ```
 
 On Windows PowerShell:
 
 ```powershell
 New-Item -ItemType Directory -Force bin | Out-Null
-go build -o bin/infra-sim.exe ./cmd/infra-sim
-go build -o bin/infra-sim-web.exe ./cmd/infra-sim-web
-.\bin\infra-sim-web.exe --web-dir web/dist --addr :8080
+go build -o bin/archpulse.exe ./cmd/archpulse
+go build -o bin/archpulse-web.exe ./cmd/archpulse-web
+.\bin\archpulse-web.exe --web-dir web/dist --addr :8080
 ```
 
 For a reproducible clean frontend install using the committed lockfile, use
@@ -65,10 +65,10 @@ For a reproducible clean frontend install using the committed lockfile, use
 ## Run
 
 ```powershell
-go run ./cmd/infra-sim validate testdata/architectures/alb-ec2-rds.yaml
-go run ./cmd/infra-sim run testdata/architectures/alb-ec2-rds.yaml --seed 42 --duration 30s
-go run ./cmd/infra-sim run testdata/architectures/alb-ec2-rds.yaml --seed 42 --duration 30s --out result.json
-go run ./cmd/infra-sim report result.json
+go run ./cmd/archpulse validate testdata/architectures/alb-ec2-rds.yaml
+go run ./cmd/archpulse run testdata/architectures/alb-ec2-rds.yaml --seed 42 --duration 30s
+go run ./cmd/archpulse run testdata/architectures/alb-ec2-rds.yaml --seed 42 --duration 30s --out result.json
+go run ./cmd/archpulse report result.json
 ```
 
 CLI runs use the same automatic weighted sampling, graph-aware bottleneck analyzer,
@@ -78,11 +78,11 @@ and other contributing constraints. Useful controls include:
 
 ```powershell
 # Disable sampling (also disable limits explicitly if a very large exact run is intentional)
-go run ./cmd/infra-sim run architecture.yaml --exact --max-events 0 --max-queued-requests 0 --timeout 0
+go run ./cmd/archpulse run architecture.yaml --exact --max-events 0 --max-queued-requests 0 --timeout 0
 
 # Save the same enriched result used by the web application
-go run ./cmd/infra-sim run architecture.yaml --out result.json
-go run ./cmd/infra-sim report result.json
+go run ./cmd/archpulse run architecture.yaml --out result.json
+go run ./cmd/archpulse report result.json
 ```
 
 The full example reaches 50,000 RPS and is intentionally substantial. Use `--duration` or `--traffic` for quicker development runs.
@@ -100,7 +100,7 @@ See `docs/high-level-design.md` and `docs/low-level-design.md` for the architect
 
 ## Web architecture studio
 
-The browser editor opens with a blank canvas. Build an architecture by adding AWS service nodes and drawing request-path connections, or choose **Load YAML file** to import an existing Infra-Sim `.yaml`/`.yml` architecture through the same compiler used by the CLI. Imported resource settings, workload phases, connections, and failures are restored into the editor.
+The browser editor opens with a blank canvas. Build an architecture by adding AWS service nodes and drawing request-path connections, or choose **Load YAML file** to import an existing ArchPulse `.yaml`/`.yml` architecture through the same compiler used by the CLI. Imported resource settings, workload phases, connections, and failures are restored into the editor.
 
 The studio also supports assigning human-readable service names and editing resource capacity and latency from the persistent right-side inspector or an expanded modal editor, defining contiguous workload phases, scheduling whole-service or replica-specific latency failures, validating the graph, running the simulator, and inspecting throughput, latency, and bottleneck results. Completed simulations can be replayed on the canvas with play/pause, timeline scrubbing, selectable playback speed, and a synchronized requests-per-second graph; node colors, replica indicators, and labels follow their recorded utilization and queue pressure.
 
@@ -118,7 +118,7 @@ Run the Go API and Vite development server in separate terminals:
 # Terminal 1, repository root
 $env:GOCACHE="$PWD/.gocache"
 $env:GOMODCACHE="$PWD/.gomodcache"
-go run ./cmd/infra-sim-web
+go run ./cmd/archpulse-web
 
 # Terminal 2
 cd web
@@ -135,7 +135,7 @@ cd web
 npm install
 npm run build
 cd ..
-go run ./cmd/infra-sim-web
+go run ./cmd/archpulse-web
 ```
 
 Open `http://localhost:8080`. The production frontend is served from `web/dist`; use `--web-dir` to override that location and `--addr` to change the listen address.

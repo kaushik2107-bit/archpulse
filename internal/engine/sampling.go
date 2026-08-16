@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"infra-sim/internal/ir"
+	"archpulse/internal/ir"
 )
 
 const TargetRepresentativeRequests = 200_000

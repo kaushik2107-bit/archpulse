@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"infra-sim/internal/kernel"
-	"infra-sim/pkg/model"
+	"archpulse/internal/kernel"
+	"archpulse/pkg/model"
 )
 
 func JSON(result model.RunResult, writer io.Writer) error {

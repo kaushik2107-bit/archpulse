@@ -3,7 +3,7 @@ package resources
 import (
 	"testing"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 func TestComputeFailureTargetsOneInstance(t *testing.T) {

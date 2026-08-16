@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"infra-sim/internal/analysis"
-	"infra-sim/internal/kernel"
-	"infra-sim/pkg/model"
+	"archpulse/internal/analysis"
+	"archpulse/internal/kernel"
+	"archpulse/pkg/model"
 )
 
 func TestTextReportsBottleneckWithoutPlateau(t *testing.T) {

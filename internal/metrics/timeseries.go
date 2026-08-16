@@ -3,7 +3,7 @@ package metrics
 import (
 	"sort"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 type Point struct {

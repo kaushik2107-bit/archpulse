@@ -312,7 +312,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><div className="brand-mark"><Workflow size={21} /></div><div><strong>Infra-Sim</strong><span>Architecture Studio</span></div></div>
+        <div className="brand"><div className="brand-mark"><Workflow size={21} /></div><div><strong>ArchPulse</strong><span>Architecture Studio</span></div></div>
         <div className={`connection-status ${status?.kind ?? 'info'}`}>
           <span className="status-dot" />{status?.message ?? 'Ready'}
         </div>
@@ -377,7 +377,7 @@ export default function App() {
               style={{ width: 155, height: 96 }}
             />
           </ReactFlow>
-          {nodes.length === 0 && <div className="canvas-empty"><div className="canvas-empty__icon"><Workflow size={28} /></div><strong>Build your first architecture</strong><p>Add services from the palette and connect them, or load an existing Infra-Sim YAML file.</p><button className="button primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Choose YAML file</button></div>}
+          {nodes.length === 0 && <div className="canvas-empty"><div className="canvas-empty__icon"><Workflow size={28} /></div><strong>Build your first architecture</strong><p>Add services from the palette and connect them, or load an existing ArchPulse YAML file.</p><button className="button primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Choose YAML file</button></div>}
           {running && jobProgress && <div className="run-progress"><div className="run-progress__top"><span>Simulating virtual traffic {jobProgress.sampling_factor > 1 && <b>· {jobProgress.sampling_factor}× weighted sample</b>}</span><strong>{jobProgress.percent.toFixed(0)}%</strong></div><div className="progress-track"><span style={{ width: `${Math.max(1, jobProgress.percent)}%` }} /></div><div className="run-progress__meta"><span>{(jobProgress.completed_requests ?? 0).toLocaleString()} represented requests served</span><span>{jobProgress.queued_requests.toLocaleString()} queued</span><span>{jobProgress.events_processed.toLocaleString()} simulated events</span></div></div>}
           {!running && result && <div className="playback-controls">
             <PlaybackRequestGraph points={result.result.throughput_rps ?? []} currentTime={playbackTime * 1e9} duration={result.result.trace.FinalTime} />

@@ -12,14 +12,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"infra-sim/internal/analysis"
-	enginerunner "infra-sim/internal/engine"
-	"infra-sim/internal/ir"
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/metrics"
-	"infra-sim/internal/profiles"
-	"infra-sim/internal/resources"
-	"infra-sim/pkg/model"
+	"archpulse/internal/analysis"
+	enginerunner "archpulse/internal/engine"
+	"archpulse/internal/ir"
+	"archpulse/internal/kernel"
+	"archpulse/internal/metrics"
+	"archpulse/internal/profiles"
+	"archpulse/internal/resources"
+	"archpulse/pkg/model"
 )
 
 type ArchitectureRequest struct {
@@ -367,7 +367,7 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 		return
 	}
 	result := model.NewRunResult(input.Seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &input.Graph), &input.Graph, samplingFactor, uint64(estimatedArrivals))
-	writer.Header().Set("X-Infra-Sim-Sampling-Factor", fmt.Sprint(samplingFactor))
+	writer.Header().Set("X-ArchPulse-Sampling-Factor", fmt.Sprint(samplingFactor))
 	resources := make([]ResourceReference, 0, len(input.Graph.Nodes))
 	for index, node := range input.Graph.Nodes {
 		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Name: node.Name, Type: node.ResourceType})

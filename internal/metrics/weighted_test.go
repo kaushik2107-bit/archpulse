@@ -3,7 +3,7 @@ package metrics
 import (
 	"testing"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 func TestWeightedMetricsRepresentSampledRequests(t *testing.T) {

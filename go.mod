@@ -1,4 +1,4 @@
-module infra-sim
+module archpulse
 
 go 1.25
 

@@ -1,6 +1,6 @@
 package metrics
 
-import "infra-sim/internal/kernel"
+import "archpulse/internal/kernel"
 
 type ResourceMetrics struct {
 	Throughput  *BucketSeries

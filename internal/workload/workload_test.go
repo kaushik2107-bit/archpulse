@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 func TestCompositeCrossesContiguousSegmentBoundary(t *testing.T) {

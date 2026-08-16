@@ -3,8 +3,8 @@ package engine
 import (
 	"testing"
 
-	"infra-sim/internal/ir"
-	"infra-sim/internal/metrics"
+	"archpulse/internal/ir"
+	"archpulse/internal/metrics"
 )
 
 const testArchitecture = `

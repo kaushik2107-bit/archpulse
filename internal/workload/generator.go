@@ -3,7 +3,7 @@ package workload
 import (
 	"math/rand"
 
-	"infra-sim/internal/kernel"
+	"archpulse/internal/kernel"
 )
 
 type Generator interface {

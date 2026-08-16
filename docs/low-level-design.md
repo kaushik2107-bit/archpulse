@@ -1,4 +1,4 @@
-# Infra-Sim: Low-Level Design (MVP scope: Load Generator → ALB → EC2 → RDS)
+# ArchPulse: Low-Level Design (MVP scope: Load Generator → ALB → EC2 → RDS)
 
 Scope note: this LLD targets Phase 1 + Phase 2 from the HLD roadmap — the kernel and the four MVP resources. Later resources (Kafka, SQS, Redis, autoscaling, retries) slot into the same interfaces without changing anything below; where relevant I've noted the extension point rather than designing it now.
 
@@ -9,9 +9,9 @@ Language: Go, per the HLD recommendation. Types below are real Go, not pseudocod
 ## 1. Repository Structure
 
 ```
-infra-sim/
+archpulse/
 ├── cmd/
-│   └── infra-sim/
+│   └── archpulse/
 │       └── main.go                 # CLI entrypoint, cobra command tree
 ├── internal/
 │   ├── kernel/                     # Phase 1 — knows nothing about AWS
@@ -67,7 +67,7 @@ infra-sim/
 └── README.md
 ```
 
-Rule enforced by this layout: `internal/kernel` has zero imports from `internal/resources`, `internal/ir`, or `internal/workload`. This is the physical embodiment of the HLD's "dependencies point downward" rule — if you ever `import "infra-sim/internal/resources"` inside `kernel/`, that's a design violation, and Go's own compiler + a simple lint rule (or just `go list -deps` in CI) can enforce it mechanically.
+Rule enforced by this layout: `internal/kernel` has zero imports from `internal/resources`, `internal/ir`, or `internal/workload`. This is the physical embodiment of the HLD's "dependencies point downward" rule — if you ever `import "archpulse/internal/resources"` inside `kernel/`, that's a design violation, and Go's own compiler + a simple lint rule (or just `go list -deps` in CI) can enforce it mechanically.
 
 ---
 
@@ -1398,9 +1398,9 @@ One test that runs the full `alb-ec2-rds.yaml` architecture through the exact 3-
 ## 11. CLI Wiring
 
 ```go
-// cmd/infra-sim/main.go
+// cmd/archpulse/main.go
 func main() {
-	root := &cobra.Command{Use: "infra-sim"}
+	root := &cobra.Command{Use: "archpulse"}
 	root.AddCommand(runCmd(), validateCmd(), reportCmd())
 	root.Execute()
 }
@@ -1693,7 +1693,7 @@ This is explicitly the _simplest correct-enough_ version — flagged in HLD §7 
 
 ## 14. Visualizer and Web API
 
-The initial visual canvas is implemented in `web/` using React, TypeScript, Vite, and React Flow. The Go server in `cmd/infra-sim-web` serves the production bundle and routes `/api` requests through `internal/webapi`.
+The initial visual canvas is implemented in `web/` using React, TypeScript, Vite, and React Flow. The Go server in `cmd/archpulse-web` serves the production bundle and routes `/api` requests through `internal/webapi`.
 
 The API surface is intentionally small:
 

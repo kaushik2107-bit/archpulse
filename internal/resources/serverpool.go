@@ -1,6 +1,6 @@
 package resources
 
-import "infra-sim/internal/kernel"
+import "archpulse/internal/kernel"
 
 type AdmitResult uint8
 

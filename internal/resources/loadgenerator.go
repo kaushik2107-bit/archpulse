@@ -1,8 +1,8 @@
 package resources
 
 import (
-	"infra-sim/internal/kernel"
-	"infra-sim/internal/workload"
+	"archpulse/internal/kernel"
+	"archpulse/internal/workload"
 )
 
 type LoadGenerator struct {
