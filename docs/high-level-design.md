@@ -404,6 +404,11 @@ capacity constraints using whole-run queue and utilization evidence, detects
 material throughput regime drops, and distinguishes downstream root constraints
 from backpressure observed at upstream callers.
 
+The completed-run API also returns bounded per-resource pressure timelines. The
+browser can replay or scrub these metrics over virtual time, animating request-path
+edges and moving nodes between idle, active, warning, and critical states without
+storing individual request events.
+
 For the Go MVP, assembly is centralized in `engine.Bootstrap(graph, workloadConfig, failureConfig, seed)`. Bootstrap builds the world, creates deterministic RNG streams and the metrics sink, seeds the load-generator tick, metrics tick, and failures, and defaults the simulation horizon to the final workload segment's end time. The kernel's `RunTrace` contains deterministic execution facts such as event count and final time; aggregated metrics remain in the engine-owned sink and are passed separately to analysis.
 
 ### Example CLI flow

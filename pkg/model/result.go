@@ -15,17 +15,24 @@ type LatencySummary struct {
 }
 
 type RunResult struct {
-	Seed       int64                     `json:"seed"`
-	Trace      kernel.RunTrace           `json:"trace"`
-	Throughput []metrics.Point           `json:"throughput_rps"`
-	Latency    LatencySummary            `json:"latency"`
-	Rejected   uint64                    `json:"rejected"`
-	Bottleneck analysis.BottleneckReport `json:"bottleneck"`
+	Seed              int64                     `json:"seed"`
+	Trace             kernel.RunTrace           `json:"trace"`
+	Throughput        []metrics.Point           `json:"throughput_rps"`
+	Latency           LatencySummary            `json:"latency"`
+	Rejected          uint64                    `json:"rejected"`
+	Bottleneck        analysis.BottleneckReport `json:"bottleneck"`
+	ResourceTimelines []ResourceTimeline        `json:"resource_timelines"`
+}
+
+type ResourceTimeline struct {
+	ResourceID  kernel.ResourceID `json:"resource_id"`
+	Utilization []metrics.Point   `json:"utilization_pct"`
+	QueueDepth  []metrics.Point   `json:"queue_depth"`
 }
 
 func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottleneck analysis.BottleneckReport) RunResult {
 	histogram := sink.Global().Latency
-	return RunResult{
+	result := RunResult{
 		Seed:       seed,
 		Trace:      trace,
 		Throughput: sink.Global().Throughput.Points(),
@@ -35,4 +42,11 @@ func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottlen
 		Rejected:   sink.Global().Rejected,
 		Bottleneck: bottleneck,
 	}
+	for id := kernel.ResourceID(0); int(id) < len(sink.PerResource()); id++ {
+		resource := sink.PerResource()[id]
+		result.ResourceTimelines = append(result.ResourceTimelines, ResourceTimeline{
+			ResourceID: id, Utilization: resource.Utilization.Points, QueueDepth: resource.QueueDepth.Points,
+		})
+	}
+	return result
 }

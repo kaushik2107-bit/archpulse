@@ -88,6 +88,11 @@ export interface RunResponse {
     throughput_rps: MetricPoint[] | null
     latency: { count: number; mean_us: number; p50_us: number; p95_us: number; p99_us: number }
     rejected: number
+    resource_timelines: Array<{
+      resource_id: number
+      utilization_pct: MetricPoint[]
+      queue_depth: MetricPoint[]
+    }>
     bottleneck: {
       plateau_start_time_ns: number
       plateau_throughput_rps: number

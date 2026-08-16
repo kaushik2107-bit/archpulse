@@ -17,8 +17,10 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Pause,
   Play,
   Plus,
+  RotateCcw,
   Settings2,
   Trash2,
   Upload,
@@ -33,6 +35,7 @@ import type {
   ArchitectureEdge,
   CatalogEntry,
   FailureConfig,
+  MetricPoint,
   RunResponse,
   ServiceNode,
   SimulationJob,
@@ -60,6 +63,9 @@ export default function App() {
   const [activeJob, setActiveJob] = useState<string | null>(null)
   const [jobProgress, setJobProgress] = useState<SimulationJob['progress'] | null>(null)
   const [result, setResult] = useState<RunResponse | null>(null)
+  const [playbackTime, setPlaybackTime] = useState(0)
+  const [playbackSpeed, setPlaybackSpeed] = useState(10)
+  const [playing, setPlaying] = useState(false)
   const [bottomTab, setBottomTab] = useState<'workload' | 'failures' | 'results'>('workload')
   const nextID = useRef(1)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -85,6 +91,8 @@ export default function App() {
         applyPressure(job)
         if (job.status === 'completed' && job.result) {
           setResult({ result: job.result, resources: job.resources })
+          setPlaybackTime(0)
+          setPlaying(true)
           setBottomTab('results')
           setRunning(false)
           setActiveJob(null)
@@ -111,6 +119,25 @@ export default function App() {
     void poll()
     return () => { disposed = true; if (timer !== undefined) window.clearTimeout(timer) }
   }, [activeJob])
+
+  const playbackDuration = (result?.result.trace.FinalTime ?? 0) / 1e9
+
+  useEffect(() => {
+    if (!playing || !result || playbackDuration <= 0) return
+    const timer = window.setInterval(() => {
+      setPlaybackTime((current) => {
+        const next = Math.min(playbackDuration, current + playbackSpeed / 10)
+        if (next >= playbackDuration) setPlaying(false)
+        return next
+      })
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [playing, playbackDuration, playbackSpeed, result])
+
+  useEffect(() => {
+    if (!result || running) return
+    applyTimelinePressure(result, playbackTime)
+  }, [result, running, playbackTime])
 
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === connection.target) return
@@ -160,6 +187,8 @@ export default function App() {
     setWorkload(defaultWorkload.map((segment) => ({ ...segment })))
     setFailures([])
     setResult(null)
+    setPlaying(false)
+    setPlaybackTime(0)
     setStatus({ kind: 'info', message: 'Canvas cleared — add nodes or load a YAML architecture' })
   }
 
@@ -174,6 +203,8 @@ export default function App() {
       setWorkload(imported.workload.segments)
       setFailures(imported.failures ?? [])
       setResult(null)
+      setPlaying(false)
+      setPlaybackTime(0)
       setStatus({ kind: 'success', message: `${file.name} loaded — ${imported.graph.nodes.length} nodes and ${imported.graph.edges.length} connections` })
     } catch (error) {
       setStatus({ kind: 'error', message: (error as Error).message })
@@ -192,6 +223,9 @@ export default function App() {
 
   async function simulate() {
     setRunning(true)
+    setResult(null)
+    setPlaying(false)
+    setPlaybackTime(0)
     setJobProgress(null)
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, pressure: 'active', liveUtilization: 0, liveQueueDepth: 0 } })))
     setStatus({ kind: 'info', message: 'Simulation running…' })
@@ -218,18 +252,30 @@ export default function App() {
     const referenceByResource = new Map(job.resources.map((resource) => [resource.resource_id, resource.node_id]))
     const pressureByNode = new Map(job.progress.resources.map((resource) => {
       const nodeID = referenceByResource.get(resource.resource_id) ?? ''
-      const pressure = resource.queue_depth > 0 || resource.utilization_pct >= 90
-        ? 'critical'
-        : resource.utilization_pct >= 70
-          ? 'warning'
-          : resource.in_flight > 0
-            ? 'active'
-            : 'idle'
+      const pressure = classifyPressure(resource.utilization_pct, resource.queue_depth, resource.in_flight > 0)
       return [nodeID, { pressure, utilization: resource.utilization_pct, queue: resource.queue_depth }] as const
     }))
     setNodes((current) => current.map((node) => {
       const live = pressureByNode.get(node.id)
       return live ? { ...node, data: { ...node.data, pressure: live.pressure, liveUtilization: live.utilization, liveQueueDepth: live.queue } } : node
+    }))
+  }
+
+  function applyTimelinePressure(completed: RunResponse, atSeconds: number) {
+    const at = atSeconds * 1e9
+    const trafficActive = valueAt(completed.result.throughput_rps, at) > 0
+    const nodeByResource = new Map(completed.resources.map((resource) => [resource.resource_id, resource.node_id]))
+    const pressureByNode = new Map((completed.result.resource_timelines ?? []).map((timeline) => {
+      // Resource snapshots are instantaneous and can alternate busy/idle for
+      // short services. A trailing virtual-time window prevents visual flicker.
+      const utilization = maxValueInWindow(timeline.utilization_pct, at, 5e9)
+      const queue = maxValueInWindow(timeline.queue_depth, at, 5e9)
+      const pressure = classifyPressure(utilization, queue, trafficActive)
+      return [nodeByResource.get(timeline.resource_id) ?? '', { pressure, utilization, queue }] as const
+    }))
+    setNodes((current) => current.map((node) => {
+      const frame = pressureByNode.get(node.id)
+      return frame ? { ...node, data: { ...node.data, pressure: frame.pressure, liveUtilization: frame.utilization, liveQueueDepth: frame.queue } } : node
     }))
   }
 
@@ -273,11 +319,12 @@ export default function App() {
           <button className="button reset" onClick={clearArchitecture} disabled={running}><Trash2 size={15} /> Clear canvas</button>
         </aside>
 
-        <section className={`canvas-wrap ${running ? 'simulation-active' : ''}`}>
+        <section className={`canvas-wrap ${running || playing ? 'simulation-active' : ''}`}>
           <div className="canvas-heading"><div><span className="eyebrow">Architecture</span><strong>{nodes.length} nodes · {edges.length} connections</strong></div><span className="canvas-tip">Select a node to configure it</span></div>
           <ReactFlow
             nodes={nodes}
-            edges={edges.map((edge) => ({ ...edge, animated: running }))}
+            edges={edges.map((edge) => ({ ...edge, animated: running || playing }))}
+            proOptions={{ hideAttribution: true }}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -291,10 +338,31 @@ export default function App() {
           >
             <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#293747" />
             <Controls showInteractive={false} />
-            <MiniMap pannable zoomable nodeColor={(node) => node.data.category === 'database' ? '#2d79c7' : node.data.category === 'compute' ? '#9b62d1' : '#e39018'} />
+            <MiniMap
+              pannable
+              zoomable
+              ariaLabel="Architecture overview"
+              bgColor="#0a1119"
+              maskColor="rgba(3, 8, 13, 0.72)"
+              maskStrokeColor="#3a4a5e"
+              maskStrokeWidth={1}
+              nodeStrokeColor="#172333"
+              nodeStrokeWidth={2}
+              nodeColor={(node) => node.data.category === 'database' ? '#2d79c7' : node.data.category === 'compute' ? '#9b62d1' : '#e39018'}
+              style={{ width: 155, height: 96 }}
+            />
           </ReactFlow>
           {nodes.length === 0 && <div className="canvas-empty"><div className="canvas-empty__icon"><Workflow size={28} /></div><strong>Build your first architecture</strong><p>Add services from the palette and connect them, or load an existing Infra-Sim YAML file.</p><button className="button primary" onClick={() => fileInput.current?.click()}><Upload size={15} /> Choose YAML file</button></div>}
           {running && jobProgress && <div className="run-progress"><div className="run-progress__top"><span>Simulating virtual traffic {jobProgress.sampling_factor > 1 && <b>· {jobProgress.sampling_factor}× weighted sample</b>}</span><strong>{jobProgress.percent.toFixed(0)}%</strong></div><div className="progress-track"><span style={{ width: `${Math.max(1, jobProgress.percent)}%` }} /></div><div className="run-progress__meta"><span>{(jobProgress.completed_requests ?? 0).toLocaleString()} represented requests served</span><span>{jobProgress.queued_requests.toLocaleString()} queued</span><span>{jobProgress.events_processed.toLocaleString()} simulated events</span></div></div>}
+          {!running && result && <div className="playback-controls">
+            <PlaybackRequestGraph points={result.result.throughput_rps ?? []} currentTime={playbackTime * 1e9} duration={result.result.trace.FinalTime} />
+            <button className="playback-button" aria-label={playing ? 'Pause playback' : 'Play simulation'} onClick={() => { if (playbackTime >= playbackDuration) setPlaybackTime(0); setPlaying((current) => !current) }}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}</button>
+            <button className="playback-button secondary" aria-label="Restart playback" onClick={() => { setPlaybackTime(0); setPlaying(true) }}><RotateCcw size={16} /></button>
+            <strong>{formatPlaybackTime(playbackTime)}</strong>
+            <input aria-label="Simulation playback position" type="range" min="0" max={playbackDuration} step="0.1" value={Math.min(playbackTime, playbackDuration)} onChange={(event) => { setPlaying(false); setPlaybackTime(Number(event.target.value)) }} />
+            <span>{formatPlaybackTime(playbackDuration)}</span>
+            <select aria-label="Playback speed" value={playbackSpeed} onChange={(event) => setPlaybackSpeed(Number(event.target.value))}><option value="1">1×</option><option value="5">5×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select>
+          </div>}
         </section>
 
         <aside className="inspector panel">
@@ -387,6 +455,66 @@ function Metric({ label, value, detail, warning = false }: { label: string; valu
 
 function formatLatency(microseconds: number) {
   return microseconds >= 1_000 ? `${(microseconds / 1_000).toFixed(1)} ms` : `${microseconds.toFixed(0)} µs`
+}
+
+function formatPlaybackTime(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = Math.floor(seconds % 60)
+  return `${minutes}:${remainder.toString().padStart(2, '0')}`
+}
+
+function valueAt(points: MetricPoint[] | null | undefined, at: number) {
+  if (!points?.length) return 0
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    if (points[middle].time_ns <= at) low = middle + 1
+    else high = middle
+  }
+  return low === 0 ? 0 : points[low - 1].value
+}
+
+function classifyPressure(utilization: number, queue: number, active: boolean): 'idle' | 'active' | 'warning' | 'critical' {
+  if (queue > 0 || utilization >= 85) return 'critical'
+  if (utilization >= 50) return 'warning'
+  if (active || utilization > 0) return 'active'
+  return 'idle'
+}
+
+function maxValueInWindow(points: MetricPoint[] | null | undefined, at: number, window: number) {
+  if (!points?.length) return 0
+  const start = Math.max(0, at - window)
+  let maximum = valueAt(points, at)
+  for (let index = points.length - 1; index >= 0; index--) {
+    const point = points[index]
+    if (point.time_ns > at) continue
+    if (point.time_ns < start) break
+    maximum = Math.max(maximum, point.value)
+  }
+  return maximum
+}
+
+function PlaybackRequestGraph({ points, currentTime, duration }: { points: MetricPoint[]; currentTime: number; duration: number }) {
+  const width = 620
+  const height = 58
+  const peak = Math.max(1, ...points.map((point) => point.value))
+  const line = points.map((point, index) => {
+    const x = duration > 0 ? (point.time_ns / duration) * width : 0
+    const y = height - 5 - (point.value / peak) * (height - 12)
+    return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
+  }).join(' ')
+  const playhead = duration > 0 ? Math.min(width, Math.max(0, currentTime / duration * width)) : 0
+  const currentRPS = valueAt(points, currentTime)
+  return <div className="playback-graph">
+    <div><span>Served requests</span><strong>{Math.round(currentRPS).toLocaleString()} RPS</strong></div>
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Served requests per second during playback">
+      <path className="playback-graph__area" d={`${line} L ${width} ${height} L 0 ${height} Z`} />
+      <path className="playback-graph__line" d={line} />
+      <line className="playback-graph__playhead" x1={playhead} x2={playhead} y1="0" y2={height} />
+      <circle className="playback-graph__point" cx={playhead} cy={height - 5 - (currentRPS / peak) * (height - 12)} r="3" />
+    </svg>
+  </div>
 }
 
 function layoutImportedNodes(

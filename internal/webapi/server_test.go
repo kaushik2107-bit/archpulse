@@ -55,6 +55,9 @@ func TestCatalogAndSimulationEndpoints(t *testing.T) {
 	if output.Result.Latency.Count == 0 || len(output.Resources) != 4 {
 		t.Fatalf("unexpected simulation output: requests=%d resources=%d", output.Result.Latency.Count, len(output.Resources))
 	}
+	if len(output.Result.ResourceTimelines) != 4 || len(output.Result.ResourceTimelines[0].Utilization) == 0 {
+		t.Fatalf("playback timelines missing: %+v", output.Result.ResourceTimelines)
+	}
 }
 
 func TestImportYAMLEndpoint(t *testing.T) {
@@ -127,7 +130,7 @@ func TestAsynchronousSimulationLifecycle(t *testing.T) {
 		}
 		response.Body.Close()
 		if job.Status == "completed" {
-			if job.Result == nil || job.Progress.Percent != 100 || job.Progress.CompletedRequests == 0 {
+			if job.Result == nil || job.Progress.Percent != 100 || job.Progress.CompletedRequests == 0 || len(job.Result.ResourceTimelines) != 4 {
 				t.Fatalf("incomplete completed job: %+v", job)
 			}
 			return

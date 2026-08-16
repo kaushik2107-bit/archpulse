@@ -1585,6 +1585,22 @@ sample below are retained for compatibility; the implementation additionally
 returns peak/max/final evidence, score, classification, first queue time, and
 throughput-drop records.
 
+### 13.2 Visual playback
+
+Completed run results include one compact timeline per resource containing the
+existing metrics-tick utilization and queue-depth samples. The web client uses
+binary-search step lookup at the selected virtual time, then applies the same
+idle/active/warning/critical thresholds used by live progress. Playback is a
+view over aggregated samples—not a retained raw-event trace—so storage grows with
+resources multiplied by duration/tick interval rather than request volume. The
+canvas provides automatic replay, play/pause, restart, scrubbing, and speed control.
+A compact served-requests graph above the controls shares the same virtual-time
+cursor, displaying both the current RPS and a moving playhead over the complete run.
+Because resource snapshots are instantaneous, replay derives node pressure from a
+trailing five-second virtual-time maximum. This visual debounce prevents short
+services from alternating between busy and idle on adjacent ticks while retaining
+fast escalation and a bounded decay after pressure clears.
+
 ```go
 // internal/analysis/bottleneck.go
 package analysis
