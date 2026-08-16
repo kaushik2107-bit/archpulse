@@ -1,0 +1,4 @@
+.gocache/
+.gomodcache/
+infra-sim.exe
+result.json

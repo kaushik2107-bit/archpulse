@@ -1,0 +1,44 @@
+services:
+  loadgen:
+    type: load_generator
+  alb:
+    type: aws.alb
+  api:
+    type: aws.ec2
+    instances: 4
+    workers_per_instance: 100
+    service_time_mean_ms: 8
+    service_time_stddev_ms: 3
+  database:
+    type: aws.rds.postgres
+    max_connections: 200
+    query_time_mean_ms: 6
+    query_time_stddev_ms: 2
+
+connections:
+  - from: loadgen
+    to: alb
+  - from: alb
+    to: api
+  - from: api
+    to: database
+
+workload:
+  - type: constant
+    rate: 5000
+    start_time_s: 0
+    end_time_s: 60
+  - type: ramp
+    start_rate: 5000
+    end_rate: 50000
+    start_time_s: 60
+    end_time_s: 180
+  - type: constant
+    rate: 50000
+    start_time_s: 180
+    end_time_s: 300
+
+failures:
+  - target: database
+    at_s: 200
+    latency_multiplier: 5
