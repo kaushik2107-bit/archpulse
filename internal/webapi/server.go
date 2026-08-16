@@ -37,6 +37,7 @@ type RunRequest struct {
 type ResourceReference struct {
 	ResourceID uint32    `json:"resource_id"`
 	NodeID     ir.NodeID `json:"node_id"`
+	Name       string    `json:"name,omitempty"`
 	Type       string    `json:"type"`
 }
 
@@ -356,7 +357,7 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 	writer.Header().Set("X-Infra-Sim-Sampling-Factor", fmt.Sprint(samplingFactor))
 	resources := make([]ResourceReference, 0, len(input.Graph.Nodes))
 	for index, node := range input.Graph.Nodes {
-		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Type: node.ResourceType})
+		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Name: node.Name, Type: node.ResourceType})
 	}
 	writeJSON(writer, http.StatusOK, RunResponse{Result: result, Resources: resources})
 }
@@ -364,7 +365,7 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 func resourceReferences(nodes []ir.Node) []ResourceReference {
 	resources := make([]ResourceReference, 0, len(nodes))
 	for index, node := range nodes {
-		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Type: node.ResourceType})
+		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Name: node.Name, Type: node.ResourceType})
 	}
 	return resources
 }

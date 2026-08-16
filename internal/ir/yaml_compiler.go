@@ -16,6 +16,7 @@ type yamlSchema struct {
 
 type yamlService struct {
 	Type       string         `yaml:"type"`
+	Name       string         `yaml:"name"`
 	Parameters map[string]any `yaml:",inline"`
 }
 
@@ -59,7 +60,8 @@ func CompileYAML(data []byte) (*Graph, WorkloadConfig, []FailureConfig, error) {
 	for _, name := range names {
 		service := raw.Services[name]
 		delete(service.Parameters, "type")
-		graph.Nodes = append(graph.Nodes, Node{ID: NodeID(name), ResourceType: service.Type, Parameters: service.Parameters})
+		delete(service.Parameters, "name")
+		graph.Nodes = append(graph.Nodes, Node{ID: NodeID(name), Name: service.Name, ResourceType: service.Type, Parameters: service.Parameters})
 	}
 	for _, connection := range raw.Connections {
 		graph.Edges = append(graph.Edges, Edge{From: NodeID(connection.From), To: NodeID(connection.To)})

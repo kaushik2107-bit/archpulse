@@ -7,7 +7,7 @@ func TestCompileYAMLSortsNodesAndAcceptsContiguousSegments(t *testing.T) {
 services:
   loadgen: {type: load_generator}
   database: {type: aws.rds.postgres}
-  api: {type: aws.ec2, instances: 2}
+  api: {type: aws.ec2, name: Orders API, instances: 2}
   alb: {type: aws.alb}
 connections:
   - {from: loadgen, to: alb}
@@ -29,6 +29,12 @@ workload:
 	}
 	if len(workload.Segments) != 2 {
 		t.Fatalf("segments = %d, want 2", len(workload.Segments))
+	}
+	if graph.Nodes[1].Name != "Orders API" {
+		t.Fatalf("node name = %q, want Orders API", graph.Nodes[1].Name)
+	}
+	if _, exists := graph.Nodes[1].Parameters["name"]; exists {
+		t.Fatal("service name leaked into resource parameters")
 	}
 }
 

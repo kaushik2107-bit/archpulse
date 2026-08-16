@@ -4,6 +4,7 @@ type NodeID string
 
 type Node struct {
 	ID           NodeID         `json:"id"`
+	Name         string         `json:"name,omitempty"`
 	ResourceType string         `json:"resource_type"`
 	Parameters   map[string]any `json:"parameters"`
 }

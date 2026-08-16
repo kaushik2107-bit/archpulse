@@ -17,6 +17,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Maximize2,
   Pause,
   Play,
   Plus,
@@ -66,6 +67,7 @@ export default function App() {
   const [playbackTime, setPlaybackTime] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(10)
   const [playing, setPlaying] = useState(false)
+  const [inspectorExpanded, setInspectorExpanded] = useState(false)
   const [bottomTab, setBottomTab] = useState<'workload' | 'failures' | 'results'>('workload')
   const nextID = useRef(1)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -139,6 +141,13 @@ export default function App() {
     applyTimelinePressure(result, playbackTime)
   }, [result, running, playbackTime])
 
+  useEffect(() => {
+    if (!inspectorExpanded) return
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setInspectorExpanded(false) }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [inspectorExpanded])
+
   const onConnect = useCallback((connection: Connection) => {
     if (connection.source === connection.target) return
     setEdges((current) => addEdge({ ...connection, animated: false }, current))
@@ -149,7 +158,7 @@ export default function App() {
 
   const payload = useMemo<SimulationPayload>(() => ({
     graph: {
-      nodes: nodes.map((node) => ({ id: node.id, resource_type: node.data.resourceType, parameters: node.data.parameters })),
+      nodes: nodes.map((node) => ({ id: node.id, name: node.data.label, resource_type: node.data.resourceType, parameters: node.data.parameters })),
       edges: edges.map((edge) => ({ from: edge.source, to: edge.target })),
     },
     workload: { segments: workload },
@@ -174,11 +183,19 @@ export default function App() {
       : node))
   }
 
+  function updateServiceName(value: string) {
+    if (!selectedNode) return
+    setNodes((current) => current.map((node) => node.id === selectedNode.id
+      ? { ...node, data: { ...node.data, label: value } }
+      : node))
+  }
+
   function removeSelectedNode() {
     if (!selectedNode) return
     setNodes((current) => current.filter((node) => node.id !== selectedNode.id))
     setEdges((current) => current.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id))
     setFailures((current) => current.filter((failure) => failure.target !== selectedNode.id))
+    setInspectorExpanded(false)
   }
 
   function clearArchitecture() {
@@ -366,18 +383,8 @@ export default function App() {
         </section>
 
         <aside className="inspector panel">
-          <div className="panel-heading"><div><span className="eyebrow">Properties</span><h2>Configuration</h2></div><Settings2 size={18} /></div>
-          {selectedNode ? (
-            <div className="inspector-content">
-              <div className="selected-summary"><div className={`selected-icon category-${selectedNode.data.category}`}><Activity size={20} /></div><div><strong>{selectedNode.data.label}</strong><span>{selectedNode.id}</span></div></div>
-              {(selectedCatalog?.parameters?.length ?? 0) > 0 ? <div className="field-list">
-                {selectedCatalog!.parameters!.map((field) => (
-                  <label className="form-field" key={field.key}><span>{field.label}{field.unit && <small>{field.unit}</small>}</span><input type="number" min={field.min} step={field.step} value={Number(selectedNode.data.parameters[field.key] ?? 0)} onChange={(event) => updateParameter(field.key, Number(event.target.value))} /></label>
-                ))}
-              </div> : <div className="empty-compact">This node has no configurable resource parameters in the MVP.</div>}
-              <button className="button danger" onClick={removeSelectedNode}><Trash2 size={15} /> Remove node</button>
-            </div>
-          ) : <div className="empty-state"><div><Settings2 size={26} /></div><strong>No node selected</strong><p>Choose a node on the canvas to inspect and tune its capacity or latency.</p></div>}
+          <div className="panel-heading"><div><span className="eyebrow">Properties</span><h2>Configuration</h2></div><button className="panel-expand" disabled={!selectedNode} aria-label="Expand configuration" title="Open larger editor" onClick={() => setInspectorExpanded(true)}><Maximize2 size={17} /></button></div>
+          {selectedNode ? <InspectorContent node={selectedNode} catalog={selectedCatalog} onRename={updateServiceName} onUpdate={updateParameter} onRemove={removeSelectedNode} /> : <div className="empty-state"><div><Settings2 size={26} /></div><strong>No node selected</strong><p>Choose a node on the canvas to inspect and tune its capacity or latency.</p></div>}
         </aside>
       </main>
 
@@ -393,8 +400,27 @@ export default function App() {
           {bottomTab === 'results' && <Results result={result} samplingFactor={jobProgress?.sampling_factor ?? 1} />}
         </div>
       </section>
+      {inspectorExpanded && selectedNode && <div className="inspector-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setInspectorExpanded(false) }}>
+        <section className="inspector-modal" role="dialog" aria-modal="true" aria-labelledby="expanded-inspector-title">
+          <header><div><span className="eyebrow">Expanded properties</span><h2 id="expanded-inspector-title">Configure {selectedNode.data.label}</h2></div><button className="modal-close" aria-label="Close expanded configuration" onClick={() => setInspectorExpanded(false)}><X size={18} /></button></header>
+          <InspectorContent node={selectedNode} catalog={selectedCatalog} onRename={updateServiceName} onUpdate={updateParameter} onRemove={removeSelectedNode} expanded />
+        </section>
+      </div>}
     </div>
   )
+}
+
+function InspectorContent({ node, catalog, onRename, onUpdate, onRemove, expanded = false }: { node: ServiceNode; catalog?: CatalogEntry; onRename: (value: string) => void; onUpdate: (key: string, value: number) => void; onRemove: () => void; expanded?: boolean }) {
+  return <div className={`inspector-content ${expanded ? 'expanded' : ''}`}>
+    <div className="selected-summary"><div className={`selected-icon category-${node.data.category}`}><Activity size={20} /></div><div><strong>{node.data.label}</strong><span>{node.id}</span></div></div>
+    <label className="form-field service-name-field"><span>Service name<small>Display label</small></span><input type="text" value={node.data.label} placeholder={catalog?.label ?? node.data.resourceType} onChange={(event) => onRename(event.target.value)} onBlur={(event) => { if (!event.target.value.trim()) onRename(catalog?.label ?? node.data.resourceType) }} /></label>
+    {(catalog?.parameters?.length ?? 0) > 0 ? <div className="field-list">
+      {catalog!.parameters!.map((field) => (
+        <label className="form-field" key={field.key}><span>{field.label}{field.unit && <small>{field.unit}</small>}</span><input type="number" min={field.min} step={field.step} value={Number(node.data.parameters[field.key] ?? 0)} onChange={(event) => onUpdate(field.key, Number(event.target.value))} /></label>
+      ))}
+    </div> : <div className="empty-compact">This node has no configurable resource parameters in the MVP.</div>}
+    <button className="button danger" onClick={onRemove}><Trash2 size={15} /> Remove node</button>
+  </div>
 }
 
 function WorkloadEditor({ segments, onChange }: { segments: WorkloadSegment[]; onChange: (segments: WorkloadSegment[]) => void }) {
@@ -443,7 +469,7 @@ function Results({ result, samplingFactor }: { result: RunResponse | null; sampl
       <Metric label="Requests served" value={data.latency.count.toLocaleString()} detail={`${data.trace.TotalEventsProcessed.toLocaleString()} events${samplingFactor > 1 ? ` · ${samplingFactor}× sample` : ''}`} />
       <Metric label="p95 latency" value={formatLatency(data.latency.p95_us)} detail={`p50 ${formatLatency(data.latency.p50_us)}`} />
       <Metric label="p99 latency" value={formatLatency(data.latency.p99_us)} detail={`mean ${formatLatency(data.latency.mean_us)}`} />
-      <Metric label="Primary bottleneck" value={resource?.node_id ?? 'None detected'} detail={primary ? primary.reason : 'No sustained capacity constraint detected'} warning={Boolean(primary)} />
+      <Metric label="Primary bottleneck" value={resource?.name || resource?.node_id || 'None detected'} detail={primary ? primary.reason : 'No sustained capacity constraint detected'} warning={Boolean(primary)} />
     </div>
     <div className="chart-card"><div className="chart-heading"><div><span className="eyebrow">Served throughput</span><h3>Requests per second</h3></div><div className="chart-meta"><Clock3 size={14} /> {(data.trace.FinalTime / 1e9).toFixed(0)}s virtual time</div></div><MetricChart points={data.throughput_rps ?? []} /></div>
   </div>
@@ -550,7 +576,7 @@ function layoutImportedNodes(
       type: 'service',
       position: { x: 45 + level * 250, y: 95 + row * 115 },
       data: {
-        label: service?.label ?? node.resource_type,
+        label: node.name?.trim() || service?.label || node.resource_type,
         resourceType: node.resource_type,
         category: service?.category ?? 'unknown',
         icon: service?.icon ?? 'server',

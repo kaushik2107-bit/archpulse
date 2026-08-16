@@ -51,7 +51,7 @@ export interface FailureConfig {
 
 export interface SimulationPayload {
   graph: {
-    nodes: Array<{ id: string; resource_type: string; parameters: Record<string, ParameterValue> }>
+    nodes: Array<{ id: string; name?: string; resource_type: string; parameters: Record<string, ParameterValue> }>
     edges: Array<{ from: string; to: string }>
   }
   workload: { segments: WorkloadSegment[] }
@@ -100,7 +100,7 @@ export interface RunResponse {
       ranked_resources: ResourceVerdict[]
     }
   }
-  resources: Array<{ resource_id: number; node_id: string; type: string }>
+  resources: Array<{ resource_id: number; node_id: string; name?: string; type: string }>
 }
 
 export interface JobProgress {
