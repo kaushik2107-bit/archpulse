@@ -104,10 +104,9 @@ type Server struct {
 }
 
 const (
-	webMaxEvents             = 8_000_000
-	webMaxQueuedRequests     = 250_000
-	webRunTimeout            = 2 * time.Minute
-	webTargetSampledRequests = 200_000
+	webMaxEvents         = 8_000_000
+	webMaxQueuedRequests = 250_000
+	webRunTimeout        = 2 * time.Minute
 )
 
 func New() *Server {
@@ -136,8 +135,8 @@ func (s *Server) startSimulation(writer http.ResponseWriter, request *http.Reque
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	estimatedArrivals := estimateArrivals(input.Workload)
-	samplingFactor := samplingFactorFor(estimatedArrivals)
+	estimatedArrivals := enginerunner.EstimateArrivals(input.Workload, input.DurationS)
+	samplingFactor := enginerunner.RecommendedTrafficScale(estimatedArrivals)
 	engine, err := enginerunner.BootstrapWithTrafficScale(&input.Graph, input.Workload, input.Failures, input.Seed, samplingFactor)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
@@ -163,11 +162,11 @@ func (s *Server) startSimulation(writer http.ResponseWriter, request *http.Reque
 	s.jobs[id] = job
 	s.mu.Unlock()
 	response := job.response
-	go s.executeJob(job, engine, sink, input.Seed, input.Graph)
+	go s.executeJob(job, engine, sink, input.Seed, input.Graph, uint64(estimatedArrivals), samplingFactor)
 	writeJSON(writer, http.StatusAccepted, response)
 }
 
-func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *metrics.Sink, seed int64, graph ir.Graph) {
+func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *metrics.Sink, seed int64, graph ir.Graph, estimatedArrivals uint64, samplingFactor int) {
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
@@ -219,7 +218,7 @@ func (s *Server) executeJob(job *simulationJob, engine *kernel.Engine, sink *met
 		job.cancel()
 		return
 	}
-	result := model.NewRunResult(seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &graph))
+	result := model.NewRunResult(seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &graph), &graph, samplingFactor, estimatedArrivals)
 	s.mu.Lock()
 	job.response.Status = "completed"
 	job.response.Result = &result
@@ -335,8 +334,8 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	estimatedArrivals := estimateArrivals(input.Workload)
-	samplingFactor := samplingFactorFor(estimatedArrivals)
+	estimatedArrivals := enginerunner.EstimateArrivals(input.Workload, input.DurationS)
+	samplingFactor := enginerunner.RecommendedTrafficScale(estimatedArrivals)
 	engine, err := enginerunner.BootstrapWithTrafficScale(&input.Graph, input.Workload, input.Failures, input.Seed, samplingFactor)
 	if err != nil {
 		writeError(writer, http.StatusUnprocessableEntity, err)
@@ -367,7 +366,7 @@ func (s *Server) runSimulation(writer http.ResponseWriter, request *http.Request
 		writeError(writer, http.StatusInternalServerError, fmt.Errorf("unexpected metrics sink"))
 		return
 	}
-	result := model.NewRunResult(input.Seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &input.Graph))
+	result := model.NewRunResult(input.Seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, &input.Graph), &input.Graph, samplingFactor, uint64(estimatedArrivals))
 	writer.Header().Set("X-Infra-Sim-Sampling-Factor", fmt.Sprint(samplingFactor))
 	resources := make([]ResourceReference, 0, len(input.Graph.Nodes))
 	for index, node := range input.Graph.Nodes {
@@ -382,23 +381,6 @@ func resourceReferences(nodes []ir.Node) []ResourceReference {
 		resources = append(resources, ResourceReference{ResourceID: uint32(index), NodeID: node.ID, Name: node.Name, Type: node.ResourceType})
 	}
 	return resources
-}
-
-func estimateArrivals(workload ir.WorkloadConfig) float64 {
-	total := 0.0
-	for _, segment := range workload.Segments {
-		duration := segment.EndTimeS - segment.StartTimeS
-		if segment.Type == "ramp" {
-			total += duration * (segment.StartRate + segment.EndRate) / 2
-		} else {
-			total += duration * segment.Rate
-		}
-	}
-	return total
-}
-
-func samplingFactorFor(estimatedArrivals float64) int {
-	return max(1, int(math.Ceil(estimatedArrivals/webTargetSampledRequests)))
 }
 
 func validateArchitecture(input ArchitectureRequest) error {

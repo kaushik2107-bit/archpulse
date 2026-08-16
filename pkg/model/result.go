@@ -2,6 +2,7 @@ package model
 
 import (
 	"infra-sim/internal/analysis"
+	"infra-sim/internal/ir"
 	"infra-sim/internal/kernel"
 	"infra-sim/internal/metrics"
 )
@@ -22,6 +23,16 @@ type RunResult struct {
 	Rejected          uint64                    `json:"rejected"`
 	Bottleneck        analysis.BottleneckReport `json:"bottleneck"`
 	ResourceTimelines []ResourceTimeline        `json:"resource_timelines"`
+	Resources         []ResourceDescriptor      `json:"resources,omitempty"`
+	SamplingFactor    int                       `json:"sampling_factor"`
+	EstimatedArrivals uint64                    `json:"estimated_arrivals"`
+}
+
+type ResourceDescriptor struct {
+	ResourceID kernel.ResourceID `json:"resource_id"`
+	NodeID     ir.NodeID         `json:"node_id"`
+	Name       string            `json:"name,omitempty"`
+	Type       string            `json:"type"`
 }
 
 type ResourceTimeline struct {
@@ -38,7 +49,7 @@ type InstanceTimeline struct {
 	Degraded    []metrics.Point `json:"degraded"`
 }
 
-func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottleneck analysis.BottleneckReport) RunResult {
+func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottleneck analysis.BottleneckReport, graph *ir.Graph, samplingFactor int, estimatedArrivals uint64) RunResult {
 	histogram := sink.Global().Latency
 	result := RunResult{
 		Seed:       seed,
@@ -47,8 +58,14 @@ func NewRunResult(seed int64, trace kernel.RunTrace, sink *metrics.Sink, bottlen
 		Latency: LatencySummary{
 			Count: histogram.Count(), Mean: histogram.Mean(), P50: histogram.Quantile(50), P95: histogram.Quantile(95), P99: histogram.Quantile(99),
 		},
-		Rejected:   sink.Global().Rejected,
-		Bottleneck: bottleneck,
+		Rejected:       sink.Global().Rejected,
+		Bottleneck:     bottleneck,
+		SamplingFactor: max(1, samplingFactor), EstimatedArrivals: estimatedArrivals,
+	}
+	if graph != nil {
+		for index, node := range graph.Nodes {
+			result.Resources = append(result.Resources, ResourceDescriptor{ResourceID: kernel.ResourceID(index), NodeID: node.ID, Name: node.Name, Type: node.ResourceType})
+		}
 	}
 	for id := kernel.ResourceID(0); int(id) < len(sink.PerResource()); id++ {
 		resource := sink.PerResource()[id]

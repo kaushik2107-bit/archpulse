@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	enginerunner "infra-sim/internal/engine"
 	"infra-sim/internal/ir"
 )
 
@@ -200,11 +201,11 @@ func TestSampleArchitectureUsesAutomaticWeightedSampling(t *testing.T) {
 		{Type: "ramp", StartRate: 5_000, EndRate: 50_000, StartTimeS: 60, EndTimeS: 180},
 		{Type: "constant", Rate: 50_000, StartTimeS: 180, EndTimeS: 300},
 	}}
-	estimated := estimateArrivals(workload)
+	estimated := enginerunner.EstimateArrivals(workload, 0)
 	if estimated != 9_600_000 {
 		t.Fatalf("estimated arrivals = %.0f, want 9600000", estimated)
 	}
-	if factor := samplingFactorFor(estimated); factor != 48 {
+	if factor := enginerunner.RecommendedTrafficScale(estimated); factor != 48 {
 		t.Fatalf("sampling factor = %d, want 48", factor)
 	}
 }

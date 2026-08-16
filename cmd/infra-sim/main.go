@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -70,6 +71,10 @@ func runSimulation(args []string, stdout io.Writer) error {
 	jsonOutput := flags.Bool("json", false, "print JSON instead of text")
 	traffic := flags.Float64("traffic", 0, "replace workload with a constant request rate")
 	duration := flags.String("duration", "", "override simulation horizon, for example 30s or 5m")
+	exact := flags.Bool("exact", false, "disable automatic weighted sampling")
+	maxEvents := flags.Uint64("max-events", 8_000_000, "maximum processed events (0 disables the limit)")
+	maxQueued := flags.Int("max-queued-requests", 250_000, "maximum stored queued requests (0 disables the limit)")
+	timeout := flags.Duration("timeout", 2*time.Minute, "wall-clock run timeout (0 disables the limit)")
 	architecture, flagArgs, err := architectureAndFlags(args)
 	if err != nil {
 		return err
@@ -85,26 +90,47 @@ func runSimulation(args []string, stdout io.Writer) error {
 		end := workloadConfig.Segments[len(workloadConfig.Segments)-1].EndTimeS
 		workloadConfig.Segments = []ir.WorkloadSegment{{Type: "constant", Rate: *traffic, StartTimeS: 0, EndTimeS: end}}
 	}
-	engine, err := enginerunner.Bootstrap(graph, workloadConfig, failureConfig, *seed)
-	if err != nil {
-		return err
-	}
+	durationSeconds := 0.0
 	if *duration != "" {
 		parsed, err := time.ParseDuration(*duration)
 		if err != nil || parsed <= 0 {
 			return fmt.Errorf("invalid duration %q", *duration)
 		}
-		engine.Horizon = kernel.SimTime(parsed.Nanoseconds())
+		durationSeconds = parsed.Seconds()
+	}
+	estimatedArrivals := enginerunner.EstimateArrivals(workloadConfig, durationSeconds)
+	samplingFactor := enginerunner.RecommendedTrafficScale(estimatedArrivals)
+	if *exact {
+		samplingFactor = 1
+	}
+	engine, err := enginerunner.BootstrapWithTrafficScale(graph, workloadConfig, failureConfig, *seed, samplingFactor)
+	if err != nil {
+		return err
+	}
+	if durationSeconds > 0 {
+		engine.Horizon = kernel.SimTime(durationSeconds * float64(kernel.Second))
+	}
+	engine.MaxEvents = *maxEvents
+	engine.MaxQueuedRequests = *maxQueued
+	var cancel context.CancelFunc
+	ctx := context.Background()
+	if *timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, *timeout)
+		defer cancel()
+		engine.ShouldStop = func() bool { return ctx.Err() != nil }
 	}
 	trace, err := engine.Run()
 	if err != nil {
+		if errors.Is(err, kernel.ErrSimulationCancelled) && ctx.Err() != nil {
+			return fmt.Errorf("simulation exceeded wall-clock timeout %s", timeout.String())
+		}
 		return err
 	}
 	sink, ok := engine.Metrics.(*metrics.Sink)
 	if !ok {
 		return errors.New("engine metrics sink has unexpected type")
 	}
-	result := model.NewRunResult(*seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, graph))
+	result := model.NewRunResult(*seed, trace, sink, analysis.AnalyzeWithGraph(trace, sink, graph), graph, samplingFactor, uint64(estimatedArrivals))
 	if *out != "" {
 		file, err := os.Create(*out)
 		if err != nil {

@@ -478,7 +478,7 @@ Load Generator -> Load Balancer -> Compute -> Database
 - Browser architecture studio for node/edge editing, resource parameters, workload phases, failure injection, validation, simulation, and result visualization
 - Go JSON API for service-catalog discovery, validation, YAML import, and asynchronous simulation jobs
 - Live virtual-time progress, resource pressure snapshots, cancellation, bounded concurrency, and web-run safety limits
-- Automatic weighted sampling for high-volume web runs, with proportional workload/capacity scaling and explicit sampling-factor disclosure
+- Automatic weighted sampling for high-volume web and CLI runs, with proportional workload/capacity scaling and explicit sampling-factor disclosure
 
 ### Explicitly excluded from MVP
 
